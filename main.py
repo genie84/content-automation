@@ -2,6 +2,7 @@
 from config.sources import SOURCES
 from scripts.gemini_reprocessor import get_client, resolve_flash_model, reprocess_content
 from scripts.html_assembler import assemble_html
+from scripts.kakao_notifier import send_kakao_notification
 from scripts.rss_collector import collect_new_videos, load_seen_videos, save_seen_videos
 from scripts.wordpress_publisher import publish_post
 
@@ -23,6 +24,11 @@ def run():
                 content_html = assemble_html(content, video)
                 result = publish_post(content.title, content_html, status="draft")
                 print(f"  - 발행됨(draft): {content.title} → {result['link']}")
+
+                try:
+                    send_kakao_notification(content.title, result["link"])
+                except Exception as e:
+                    print(f"  - 카카오 알림 실패(발행은 정상): {type(e).__name__}: {e}")
 
                 seen_ids.add(video["video_id"])
                 seen_videos[source["id"]] = sorted(seen_ids)
