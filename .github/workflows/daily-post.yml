@@ -1,0 +1,35 @@
+name: Daily Content Pipeline
+
+on:
+  schedule:
+    - cron: "45 22 * * *"  # 07:45 KST
+    - cron: "0 1 * * *"    # 10:00 KST
+    - cron: "0 5 * * *"    # 14:00 KST
+    - cron: "0 10 * * *"   # 19:00 KST
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - run: python main.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update seen_videos.json"
+          file_pattern: data/seen_videos.json
