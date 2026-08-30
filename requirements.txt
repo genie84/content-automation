@@ -3,3 +3,4 @@ youtube-transcript-api
 google-genai
 pydantic
 python-dotenv
+Pillow

@@ -16,17 +16,17 @@ from scripts.rss_collector import fetch_feed
 from scripts.transcript_extractor import get_transcript
 
 
-class TableRow(BaseModel):
-    항목: str
-    현재: str
-    리스크: str
+class Card(BaseModel):
+    icon_emoji: str
+    headline: str
+    body: str
 
 
 class ReprocessedContent(BaseModel):
     title: str
-    summary_lines: list[str]
-    table_rows: list[TableRow]
-    body_html: str
+    intro_text: str
+    cards: list[Card]
+    outro_text: str
 
 
 def get_client() -> genai.Client:
@@ -89,10 +89,11 @@ def main():
 
     result = reprocess_content(video, source, model_name, client)
     print(f"재가공 제목: {result.title}")
-    print(f"요약: {result.summary_lines}")
-    print(f"표 행 수: {len(result.table_rows)}")
-    print(f"본문 길이: {len(result.body_html)}자")
-    print(result.body_html[:500])
+    print(f"도입: {result.intro_text}")
+    print(f"카드 수: {len(result.cards)}")
+    for i, card in enumerate(result.cards, 1):
+        print(f"  {i}. {card.icon_emoji} {card.headline} — {card.body}")
+    print(f"마무리: {result.outro_text}")
 
 
 if __name__ == "__main__":

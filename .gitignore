@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local prompt-tuning scratch state
+data/playground_post_id.txt
