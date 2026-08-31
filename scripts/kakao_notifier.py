@@ -44,7 +44,7 @@ def send_kakao_notification(title: str, link: str) -> None:
 
 
 def main():
-    send_kakao_notification("[테스트] 카카오 알림 연동 확인", "https://yahaho1004.mycafe24.com/wp-admin/edit.php?post_status=draft")
+    send_kakao_notification("[테스트] 카카오 알림 연동 확인", "https://lampgenie.co.kr/wp-admin/edit.php?post_status=draft")
 
 
 if __name__ == "__main__":

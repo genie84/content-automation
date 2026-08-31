@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 load_dotenv()
 
-WP_BASE_URL = "https://yahaho1004.mycafe24.com"
+WP_BASE_URL = "https://lampgenie.co.kr"
 
 
 def publish_post(title: str, content_html: str, status: str = "draft") -> dict:

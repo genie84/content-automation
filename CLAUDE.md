@@ -26,8 +26,7 @@
 ## 기술 스택
 - **언어/실행환경**: Python + GitHub Actions (매일 아침 자동 실행, 서버 유지비 없음)
 - **텍스트 재가공**: Gemini API (무료 티어, Flash 모델)
-- **발행 대상**: 워드프레스(REST API), 사이트 주소 `https://yahaho1004.mycafe24.com`
-  - 정식 도메인 `lampgenie.co.kr` 연결 진행 중 (SSL 인증서 이슈로 카페24 문의 중, 완료 전까지는 mycafe24 주소로 발행)
+- **발행 대상**: 워드프레스(REST API), 사이트 주소 `https://lampgenie.co.kr` (2026-08-30 정식 도메인 연결 완료, 기존 `yahaho1004.mycafe24.com`에서 전환)
 
 ## 이미 준비된 것 (GitHub Secrets에 등록 완료)
 - `GEMINI_API_KEY` — Gemini API 키
