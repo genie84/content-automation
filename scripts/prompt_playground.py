@@ -51,11 +51,10 @@ def main():
         print(f"새로 생성됨: {result['link']}")
 
     print(f"\n제목: {content.title}")
-    print(f"도입: {content.intro_text}")
-    print(f"카드 수: {len(content.cards)}")
-    for i, card in enumerate(content.cards, 1):
-        print(f"  {i}. {card.headline} — {card.body}")
-    print(f"마무리: {content.outro_text}")
+    print(f"요약: {content.summary_lines}")
+    print(f"표 행 수: {len(content.table_rows)}")
+    print(f"본문 길이: {len(content.body_html)}자")
+    print(content.body_html[:800])
 
 
 if __name__ == "__main__":

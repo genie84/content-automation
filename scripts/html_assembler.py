@@ -1,17 +1,37 @@
-"""카드뉴스 이미지와 유튜브 임베드를 워드프레스 발행용 HTML 하나로 조립한다."""
+"""재가공된 콘텐츠와 유튜브 임베드를 워드프레스 발행용 HTML 하나로 조립한다."""
 import html
 import os
 import sys
-import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from scripts.card_renderer import render_card
-from scripts.gemini_reprocessor import Card, ReprocessedContent
-from scripts.wordpress_publisher import upload_media
+from scripts.gemini_reprocessor import ReprocessedContent, TableRow
 
 
-def build_text_block(text: str) -> str:
-    return f"<p>{html.escape(text)}</p>"
+def build_summary_box(summary_lines: list[str]) -> str:
+    items = "".join(f"<li>{html.escape(line)}</li>" for line in summary_lines)
+    return (
+        '<div style="border:1px solid #ddd; border-radius:8px; padding:16px; margin:16px 0;">'
+        "<strong>\U0001f4cc 핵심요약</strong>"
+        f"<ul>{items}</ul>"
+        "</div>"
+    )
+
+
+def build_table(table_rows: list[TableRow]) -> str:
+    if not table_rows:
+        return ""
+    headers = list(table_rows[0].model_dump().keys())
+    header_html = "".join(f"<th>{html.escape(h)}</th>" for h in headers)
+    body_html = ""
+    for row in table_rows:
+        cells = "".join(f"<td>{html.escape(str(v))}</td>" for v in row.model_dump().values())
+        body_html += f"<tr>{cells}</tr>"
+    return (
+        '<table style="border-collapse:collapse; width:100%; margin:16px 0;" border="1">'
+        f"<thead><tr>{header_html}</tr></thead>"
+        f"<tbody>{body_html}</tbody>"
+        "</table>"
+    )
 
 
 def build_youtube_embed(video_id: str) -> str:
@@ -25,43 +45,30 @@ def build_youtube_embed(video_id: str) -> str:
     )
 
 
-def build_cards_html(cards: list[Card], video_id: str) -> str:
-    total = len(cards)
-    img_tags = []
-    for i, card in enumerate(cards, 1):
-        png_bytes = render_card(card.icon_emoji, card.headline, card.body, i, total)
-        filename = f"card-{video_id}-{i}-{uuid.uuid4().hex[:8]}.png"
-        media = upload_media(png_bytes, filename)
-        img_tags.append(
-            f'<img src="{media["source_url"]}" alt="{html.escape(card.headline)}" '
-            'style="max-width:100%; display:block; margin:16px auto;" />'
-        )
-    return "".join(img_tags)
-
-
 def assemble_html(content: ReprocessedContent, video: dict) -> str:
     return (
-        build_text_block(content.intro_text)
-        + build_cards_html(content.cards, video["video_id"])
-        + build_text_block(content.outro_text)
+        build_summary_box(content.summary_lines)
+        + build_table(content.table_rows)
+        + content.body_html
         + build_youtube_embed(video["video_id"])
     )
 
 
 def main():
     sample_content = ReprocessedContent(
-        title="[테스트] 카드뉴스 조립 확인",
-        intro_text="이 글은 html_assembler.py 단독 테스트용입니다.",
-        cards=[
-            Card(icon_emoji="1️⃣", headline="카드 1", body="첫 번째 카드 본문입니다."),
-            Card(icon_emoji="2️⃣", headline="카드 2", body="두 번째 카드 본문입니다."),
-        ],
-        outro_text="여기까지 테스트였습니다.",
+        title="[테스트] 조립 확인",
+        summary_lines=["요약 1", "요약 2"],
+        table_rows=[TableRow(항목="항목1", 현재="값1", 리스크="리스크1")],
+        body_html="<h3>제목</h3><p>본문입니다.</p>",
     )
     sample_video = {"video_id": "m67LrN1J-fg"}
 
     result_html = assemble_html(sample_content, sample_video)
+    out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "preview.html")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(f"<meta charset='utf-8'><body style='max-width:700px; margin:40px auto; font-family:sans-serif;'>{result_html}</body>")
     print(f"조립된 HTML 길이: {len(result_html)}자")
+    print(f"미리보기 저장: {out_path}")
 
 
 if __name__ == "__main__":
