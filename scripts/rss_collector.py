@@ -57,9 +57,20 @@ def save_seen_videos(seen_videos: dict) -> None:
         json.dump(seen_videos, f, ensure_ascii=False, indent=2)
 
 
+def matches_program_whitelist(title: str, program_whitelist: list[str]) -> bool:
+    normalized_title = title.replace(" ", "")
+    return any(program.replace(" ", "") in normalized_title for program in program_whitelist)
+
+
 def collect_new_videos(source: dict, seen_ids: set) -> list[dict]:
     entries = fetch_feed(source["rss_url"])
-    return [e for e in entries if e["video_id"] not in seen_ids]
+    entries = [e for e in entries if e["video_id"] not in seen_ids]
+
+    program_whitelist = source.get("program_whitelist")
+    if program_whitelist:
+        entries = [e for e in entries if matches_program_whitelist(e["title"], program_whitelist)]
+
+    return entries
 
 
 def main():
