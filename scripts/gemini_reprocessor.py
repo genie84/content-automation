@@ -1,6 +1,8 @@
 """Gemini API로 영상 자막/설명을 블로그 원고로 재가공한다."""
+import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from google import genai
@@ -12,8 +14,13 @@ load_dotenv()
 
 from config.prompts import SYSTEM_INSTRUCTION, build_user_prompt
 from config.sources import SOURCES
+from scripts.gemini_retry import call_with_retry
 from scripts.rss_collector import fetch_feed
 from scripts.transcript_extractor import get_transcript
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+MODEL_CACHE_PATH = os.path.join(DATA_DIR, "resolved_model.json")
+MODEL_CACHE_TTL = timedelta(hours=24)
 
 
 class TableRow(BaseModel):
@@ -29,8 +36,11 @@ class ReprocessedContent(BaseModel):
     body_html: str
 
 
-GEMINI_TIMEOUT_MS = 90_000  # SDK 기본값은 무한대기라서, GitHub Actions에서 네트워크가
-# 응답 없이 멈추면 잡을 방법이 없었음(실제로 9분 넘게 hang된 사례 있음) — 명시적으로 걸어둠.
+GEMINI_TIMEOUT_MS = 120_000  # SDK 기본값은 무한대기라서 명시적으로 걸어둠. 이 값 자체가
+# Google 서버에 X-Server-Timeout 헤더로 전달되어, 그 안에 못 끝내면 504
+# DEADLINE_EXCEEDED로 돌아옴(실측 확인함) — 너무 짧게 잡으면 자기 자신이 원인이 되는
+# 오탐성 타임아웃이 생기므로, GitHub Actions의 상대적으로 느린 네트워크 경로도
+# 감안해서 90초보다 여유 있게 잡음.
 
 
 def get_client() -> genai.Client:
@@ -42,18 +52,50 @@ def get_client() -> genai.Client:
 
 # "-latest" 별칭을 우선 시도해 날짜 붙은 구체 모델명을 추측/하드코딩하지 않는다.
 # client.models.list()는 이 키로는 쓸 수 없어서, 실제 generateContent를 핑 삼아 호출해
-# 응답하는 첫 모델을 채택한다.
+# 응답하는 첫 모델을 채택한다. 다만 이 핑 호출도 하루 쿼터를 소모하므로(무료 티어 일일
+# 20건), 결과를 24시간 캐싱해서 매 실행마다 반복하지 않는다 — 모델이 바뀌어도(예:
+# gemini-2.5-flash 서비스 종료 사례) 캐시가 하루 안에 자연스럽게 갱신되며 다시 잡힌다.
 FLASH_MODEL_CANDIDATES = [
     "gemini-flash-latest",
     "gemini-3.6-flash",
 ]
 
 
+def _load_cached_model() -> str | None:
+    if not os.path.exists(MODEL_CACHE_PATH):
+        return None
+    try:
+        with open(MODEL_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+        resolved_at = datetime.fromisoformat(cache["resolved_at"])
+        if datetime.now(timezone.utc) - resolved_at > MODEL_CACHE_TTL:
+            return None
+        return cache["model_name"]
+    except Exception:
+        return None
+
+
+def _save_model_cache(model_name: str) -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(MODEL_CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(
+            {"model_name": model_name, "resolved_at": datetime.now(timezone.utc).isoformat()},
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
 def resolve_flash_model(client: genai.Client) -> str:
+    cached = _load_cached_model()
+    if cached:
+        return cached
+
     errors = {}
     for name in FLASH_MODEL_CANDIDATES:
         try:
-            client.models.generate_content(model=name, contents="ping")
+            call_with_retry(client.models.generate_content, model=name, contents="ping")
+            _save_model_cache(name)
             return name
         except Exception as e:
             errors[name] = f"{type(e).__name__}: {e}"
@@ -72,7 +114,8 @@ def reprocess_content(
 ) -> ReprocessedContent:
     source_text, source_type = get_source_text(video)
     prompt = build_user_prompt(video, source, source_text, source_type)
-    response = client.models.generate_content(
+    response = call_with_retry(
+        client.models.generate_content,
         model=model_name,
         contents=prompt,
         config=types.GenerateContentConfig(

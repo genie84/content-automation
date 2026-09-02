@@ -15,6 +15,7 @@ from google.genai import types
 from playwright.sync_api import sync_playwright
 from pydantic import BaseModel
 
+from scripts.gemini_retry import call_with_retry
 from scripts.wordpress_publisher import upload_media
 
 MARKER_PATTERN = re.compile(r"<!--\s*도식화:\s*(.*?)\s*-->", re.DOTALL)
@@ -47,7 +48,8 @@ EXTRACT_SYSTEM_INSTRUCTION = """\
 
 
 def extract_chart_spec(marker_text: str, client, model_name: str) -> ChartSpec:
-    response = client.models.generate_content(
+    response = call_with_retry(
+        client.models.generate_content,
         model=model_name,
         contents=f"도식화 지시문: {marker_text}",
         config=types.GenerateContentConfig(

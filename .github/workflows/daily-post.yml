@@ -14,7 +14,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 28
     steps:
       - uses: actions/checkout@v4
 
@@ -34,8 +34,9 @@ jobs:
         run: playwright install --with-deps chromium
 
       - run: python main.py
-        timeout-minutes: 18
+        timeout-minutes: 25
         env:
+          PYTHONUNBUFFERED: "1"
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           WP_USERNAME: ${{ secrets.WP_USERNAME }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
@@ -45,5 +46,5 @@ jobs:
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update seen_videos.json"
-          file_pattern: data/seen_videos.json
+          commit_message: "chore: update seen_videos.json / resolved_model.json"
+          file_pattern: "data/seen_videos.json data/resolved_model.json"
