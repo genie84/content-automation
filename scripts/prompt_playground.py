@@ -43,8 +43,15 @@ def main():
 
     post_id = get_saved_post_id()
     if post_id:
-        result = update_post(post_id, f"[플레이그라운드] {content.title}", content_html, status="draft")
-        print(f"업데이트됨: {result['link']}")
+        try:
+            result = update_post(post_id, f"[플레이그라운드] {content.title}", content_html, status="draft")
+            print(f"업데이트됨: {result['link']}")
+        except Exception as e:
+            # 캐시된 post_id가 삭제 등으로 더 이상 유효하지 않으면 새로 만든다.
+            print(f"기존 테스트 draft(post {post_id}) 접근 실패({type(e).__name__}), 새로 생성합니다: {e}")
+            result = publish_post(f"[플레이그라운드] {content.title}", content_html, status="draft")
+            save_post_id(result["id"])
+            print(f"새로 생성됨: {result['link']}")
     else:
         result = publish_post(f"[플레이그라운드] {content.title}", content_html, status="draft")
         save_post_id(result["id"])

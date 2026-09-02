@@ -9,24 +9,35 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 load_dotenv()
 
 WP_BASE_URL = "https://lampgenie.co.kr"
+DEFAULT_CATEGORY_IDS = [10]  # "경제 브리핑" (slug: briefing)
 
 
-def publish_post(title: str, content_html: str, status: str = "draft") -> dict:
+def publish_post(title: str, content_html: str, status: str = "draft", categories: list[int] = None) -> dict:
     response = requests.post(
         f"{WP_BASE_URL}/wp-json/wp/v2/posts",
         auth=(os.environ["WP_USERNAME"], os.environ["WP_APP_PASSWORD"]),
-        json={"title": title, "content": content_html, "status": status},
+        json={
+            "title": title,
+            "content": content_html,
+            "status": status,
+            "categories": categories if categories is not None else DEFAULT_CATEGORY_IDS,
+        },
         timeout=30,
     )
     response.raise_for_status()
     return response.json()
 
 
-def update_post(post_id: int, title: str, content_html: str, status: str = "draft") -> dict:
+def update_post(post_id: int, title: str, content_html: str, status: str = "draft", categories: list[int] = None) -> dict:
     response = requests.post(
         f"{WP_BASE_URL}/wp-json/wp/v2/posts/{post_id}",
         auth=(os.environ["WP_USERNAME"], os.environ["WP_APP_PASSWORD"]),
-        json={"title": title, "content": content_html, "status": status},
+        json={
+            "title": title,
+            "content": content_html,
+            "status": status,
+            "categories": categories if categories is not None else DEFAULT_CATEGORY_IDS,
+        },
         timeout=30,
     )
     response.raise_for_status()
