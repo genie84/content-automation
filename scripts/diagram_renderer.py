@@ -117,11 +117,14 @@ body {{ font-family: 'Noto Sans KR', sans-serif; }}
 """
 
 
+RENDER_TIMEOUT_MS = 15_000  # 이 값 안에 안 끝나면 TimeoutError를 던짐(무한 hang 방지)
+
+
 def render_chart(spec: ChartSpec, page) -> bytes:
     html_content = build_chart_html(spec)
-    page.set_content(html_content)
+    page.set_content(html_content, timeout=RENDER_TIMEOUT_MS)
     element = page.query_selector("#card")
-    return element.screenshot(type="png")
+    return element.screenshot(type="png", timeout=RENDER_TIMEOUT_MS)
 
 
 def _safe_print(message: str) -> None:
@@ -140,8 +143,9 @@ def replace_diagram_markers(body_html: str, video_id: str, client, model_name: s
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(timeout=RENDER_TIMEOUT_MS)
             page = browser.new_page(viewport={"width": CARD_WIDTH + 40, "height": 800})
+            page.set_default_timeout(RENDER_TIMEOUT_MS)
 
             def _replace(match: re.Match) -> str:
                 marker_text = match.group(1)

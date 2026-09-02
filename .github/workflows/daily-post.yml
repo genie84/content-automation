@@ -14,6 +14,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +34,7 @@ jobs:
         run: playwright install --with-deps chromium
 
       - run: python main.py
+        timeout-minutes: 18
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           WP_USERNAME: ${{ secrets.WP_USERNAME }}

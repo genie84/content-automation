@@ -29,8 +29,15 @@ class ReprocessedContent(BaseModel):
     body_html: str
 
 
+GEMINI_TIMEOUT_MS = 90_000  # SDK 기본값은 무한대기라서, GitHub Actions에서 네트워크가
+# 응답 없이 멈추면 잡을 방법이 없었음(실제로 9분 넘게 hang된 사례 있음) — 명시적으로 걸어둠.
+
+
 def get_client() -> genai.Client:
-    return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    return genai.Client(
+        api_key=os.environ["GEMINI_API_KEY"],
+        http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS),
+    )
 
 
 # "-latest" 별칭을 우선 시도해 날짜 붙은 구체 모델명을 추측/하드코딩하지 않는다.
