@@ -2,9 +2,12 @@
 import html
 import os
 import sys
+import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.gemini_reprocessor import ReprocessedContent, TableRow
+from scripts.infographic_generator import generate_infographic
+from scripts.wordpress_publisher import upload_media
 
 
 def build_summary_box(summary_lines: list[str]) -> str:
@@ -45,12 +48,29 @@ def build_youtube_embed(video_id: str) -> str:
     )
 
 
+def build_infographic_html(title: str, summary_lines: list[str], video_id: str) -> str:
+    png_bytes = generate_infographic(title, summary_lines)
+    if png_bytes is None:
+        return ""
+    try:
+        filename = f"infographic-{video_id}-{uuid.uuid4().hex[:8]}.png"
+        media = upload_media(png_bytes, filename)
+        return (
+            f'<img src="{media["source_url"]}" alt="{html.escape(title)}" '
+            'style="max-width:100%; display:block; margin:24px auto;" />'
+        )
+    except Exception as e:
+        print(f"  - 대표 인포그래픽 업로드 실패(이미지 없이 계속 진행): {type(e).__name__}: {e}")
+        return ""
+
+
 def assemble_html(content: ReprocessedContent, video: dict) -> str:
     return (
         build_summary_box(content.summary_lines)
         + build_table(content.table_rows)
         + content.body_html
         + build_youtube_embed(video["video_id"])
+        + build_infographic_html(content.title, content.summary_lines, video["video_id"])
     )
 
 
