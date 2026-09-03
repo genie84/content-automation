@@ -48,8 +48,8 @@ def build_youtube_embed(video_id: str) -> str:
     )
 
 
-def build_infographic_html(title: str, summary_lines: list[str], video_id: str) -> str:
-    png_bytes = generate_infographic(title, summary_lines)
+def build_infographic_html(title: str, body_html: str, video_id: str) -> str:
+    png_bytes = generate_infographic(title, body_html)
     if png_bytes is None:
         return ""
     try:
@@ -64,14 +64,17 @@ def build_infographic_html(title: str, summary_lines: list[str], video_id: str) 
         return ""
 
 
-def assemble_html(content: ReprocessedContent, video: dict) -> str:
-    return (
+def assemble_html(content: ReprocessedContent, video: dict) -> tuple[str, bool]:
+    """(발행용 HTML, 대표 인포그래픽 포함 여부)를 반환한다."""
+    infographic_html = build_infographic_html(content.title, content.body_html, video["video_id"])
+    result_html = (
         build_summary_box(content.summary_lines)
         + build_table(content.table_rows)
         + content.body_html
         + build_youtube_embed(video["video_id"])
-        + build_infographic_html(content.title, content.summary_lines, video["video_id"])
+        + infographic_html
     )
+    return result_html, bool(infographic_html)
 
 
 def main():
@@ -83,7 +86,8 @@ def main():
     )
     sample_video = {"video_id": "m67LrN1J-fg"}
 
-    result_html = assemble_html(sample_content, sample_video)
+    result_html, has_infographic = assemble_html(sample_content, sample_video)
+    print(f"인포그래픽 포함 여부: {has_infographic}")
     out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "preview.html")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(f"<meta charset='utf-8'><body style='max-width:700px; margin:40px auto; font-family:sans-serif;'>{result_html}</body>")

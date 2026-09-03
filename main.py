@@ -21,12 +21,12 @@ def run():
         for video in new_videos:
             try:
                 content = reprocess_content(video, source, model_name, client)
-                content_html = assemble_html(content, video)
+                content_html, has_infographic = assemble_html(content, video)
                 result = publish_post(content.title, content_html, status="draft")
                 print(f"  - 발행됨(draft): {content.title} → {result['link']}")
 
                 try:
-                    send_kakao_notification(content.title, result["link"])
+                    send_kakao_notification(content.title, result["link"], has_infographic)
                 except Exception as e:
                     print(f"  - 카카오 알림 실패(발행은 정상): {type(e).__name__}: {e}")
 

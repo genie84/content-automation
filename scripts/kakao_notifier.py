@@ -26,11 +26,14 @@ def get_access_token() -> str:
     return response.json()["access_token"]
 
 
-def send_kakao_notification(title: str, link: str) -> None:
+def send_kakao_notification(title: str, link: str, has_infographic: bool = False) -> None:
     access_token = get_access_token()
+    text = f"새 draft 발행됨\n{title}"
+    if has_infographic:
+        text += "\n\n⚠️ 인포그래픽 검수 필요 — 발행 전 이미지 속 숫자·문구를 원본과 대조 확인하세요."
     template_object = {
         "object_type": "text",
-        "text": f"새 draft 발행됨\n{title}",
+        "text": text,
         "link": {"web_url": link, "mobile_web_url": link},
         "button_title": "확인하러 가기",
     }
