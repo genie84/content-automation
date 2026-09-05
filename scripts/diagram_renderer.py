@@ -102,10 +102,10 @@ body {{ font-family: 'Noto Sans KR', sans-serif; }}
 .label {{ font-size: 34px; font-weight: 500; color: {MUTED_COLOR}; margin-bottom: 14px; }}
 .bar-line {{ display: flex; align-items: center; gap: 20px; }}
 .bar-track {{
-  flex: 1; height: 28px; background: {BAR_TRACK_COLOR}; border-radius: 14px; overflow: hidden;
+  flex: 1; height: 56px; background: {BAR_TRACK_COLOR}; border-radius: 28px; overflow: hidden;
 }}
 .bar-fill {{
-  height: 100%; border-radius: 14px;
+  height: 100%; border-radius: 28px;
   background: linear-gradient(90deg, {BLUE}, {NAVY});
 }}
 .value {{ font-size: 38px; font-weight: 700; color: {NAVY}; white-space: nowrap; }}
@@ -158,7 +158,7 @@ def replace_diagram_markers(body_html: str, video_id: str, client, model_name: s
                     media = upload_media(png_bytes, filename)
                     return (
                         f'<img src="{media["source_url"]}" alt="{html.escape(spec.title)}" '
-                        'style="max-width:100%; display:block; margin:16px auto;" />'
+                        'style="max-width:50%; display:block; margin:16px auto;" />'
                     )
                 except Exception as e:
                     _safe_print(f"  - 도식화 변환 실패(마커 제거하고 계속 진행): {type(e).__name__}: {e}")

@@ -1,6 +1,7 @@
-"""재가공된 콘텐츠와 유튜브 임베드를 워드프레스 발행용 HTML 하나로 조립한다."""
+"""재가공된 콘텐츠를 워드프레스 발행용 HTML 하나로 조립한다."""
 import html
 import os
+import re
 import sys
 import uuid
 
@@ -9,11 +10,32 @@ from scripts.gemini_reprocessor import ReprocessedContent, TableRow
 from scripts.infographic_generator import generate_infographic
 from scripts.wordpress_publisher import upload_media
 
+# 자동발행 글에만 적용되는 scoped 스타일 — 사이트 전체 테마는 건드리지 않는다.
+# 실제 사이트(lampgenie.co.kr, 2026-09-05)에서 .entry-content 기준 실측한 값:
+# p 13.68px, h2 30px(테마 자체 지정값, body 상속이 아님), blockquote 15.048px.
+# h2는 "0.9em"으로 쓰면 부모(genie-post div, 13.68px) 기준으로 계산돼 약 12px로
+# 되레 본문보다 작아지는 문제가 있어(em은 자기 자신의 기존 크기가 아니라 부모의
+# 계산된 크기를 기준으로 함), 테마 실측값(30px)의 90%인 27px로 고정값을 씀.
+GENIE_POST_STYLE = """\
+<style>
+.genie-post p { font-size: calc(1em + 1px); }
+.genie-post h2 { font-size: 27px; }
+.genie-post blockquote.genie-insight { font-size: calc(1em + 3px); }
+.genie-post blockquote.genie-insight strong:first-child { font-size: calc(1em + 5px); }
+</style>
+"""
+
+INSIGHT_PATTERN = re.compile(r'<blockquote>(\s*<strong>\U0001f4a1\s*지니의 생각</strong>)')
+
+
+def _mark_insight_blockquote(body_html: str) -> str:
+    return INSIGHT_PATTERN.sub(r'<blockquote class="genie-insight">\1', body_html, count=1)
+
 
 def build_summary_box(summary_lines: list[str]) -> str:
     items = "".join(f"<li>{html.escape(line)}</li>" for line in summary_lines)
     return (
-        '<div style="border:1px solid #ddd; border-radius:8px; padding:16px; margin:16px 0;">'
+        '<div style="border:1px solid #ddd; border-radius:8px; padding:13px; margin:16px 0; font-size:0.8em;">'
         "<strong>\U0001f4cc 핵심요약</strong>"
         f"<ul>{items}</ul>"
         "</div>"
@@ -30,7 +52,7 @@ def build_table(table_rows: list[TableRow]) -> str:
         cells = "".join(f"<td>{html.escape(str(v))}</td>" for v in row.model_dump().values())
         body_html += f"<tr>{cells}</tr>"
     return (
-        '<table style="border-collapse:collapse; width:100%; margin:16px 0;" border="1">'
+        '<table style="border-collapse:collapse; width:80%; margin:16px auto;" border="1">'
         f"<thead><tr>{header_html}</tr></thead>"
         f"<tbody>{body_html}</tbody>"
         "</table>"
@@ -67,13 +89,14 @@ def build_infographic_html(title: str, body_html: str, video_id: str) -> str:
 def assemble_html(content: ReprocessedContent, video: dict) -> tuple[str, bool]:
     """(발행용 HTML, 대표 인포그래픽 포함 여부)를 반환한다."""
     infographic_html = build_infographic_html(content.title, content.body_html, video["video_id"])
-    result_html = (
+    body_html = _mark_insight_blockquote(content.body_html)
+    inner_html = (
         build_summary_box(content.summary_lines)
         + build_table(content.table_rows)
-        + content.body_html
-        + build_youtube_embed(video["video_id"])
+        + body_html
         + infographic_html
     )
+    result_html = f'{GENIE_POST_STYLE}<div class="genie-post">{inner_html}</div>'
     return result_html, bool(infographic_html)
 
 

@@ -59,7 +59,7 @@ def build_image_prompt(title: str, body_html: str) -> str:
 
 고정 사항:
 - 배경색: 아이보리/페이퍼 톤({PAPER_BG} 계열)
-- 이미지 비율: 세로형 카드 (1080x1350에 가까운 비율)
+- 이미지 비율: 가로형 와이드 (16:9)
 """
 
 
@@ -74,10 +74,11 @@ def generate_infographic(title: str, body_html: str) -> bytes | None:
         return None
 
     prompt = build_image_prompt(title, body_html)
+    image_config = types.GenerateContentConfig(image_config=types.ImageConfig(aspect_ratio="16:9"))
     total_attempts = MAX_RETRIES + 1
     for attempt in range(1, total_attempts + 1):
         try:
-            response = client.models.generate_content(model=IMAGE_MODEL, contents=prompt)
+            response = client.models.generate_content(model=IMAGE_MODEL, contents=prompt, config=image_config)
             for part in response.candidates[0].content.parts:
                 if part.inline_data:
                     return part.inline_data.data
