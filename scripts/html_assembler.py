@@ -70,15 +70,16 @@ def build_youtube_embed(video_id: str) -> str:
     )
 
 
-def build_infographic_html(title: str, body_html: str, video_id: str) -> str:
+def build_infographic_html(title: str, body_html: str, video_id: str, focus_keyword: str = "") -> str:
     png_bytes = generate_infographic(title, body_html)
     if png_bytes is None:
         return ""
     try:
         filename = f"infographic-{video_id}-{uuid.uuid4().hex[:8]}.png"
         media = upload_media(png_bytes, filename)
+        alt = f"{title} - {focus_keyword}" if focus_keyword and focus_keyword not in title else title
         return (
-            f'<img src="{media["source_url"]}" alt="{html.escape(title)}" '
+            f'<img src="{media["source_url"]}" alt="{html.escape(alt)}" '
             'style="max-width:100%; display:block; margin:24px auto;" />'
         )
     except Exception as e:
@@ -88,7 +89,9 @@ def build_infographic_html(title: str, body_html: str, video_id: str) -> str:
 
 def assemble_html(content: ReprocessedContent, video: dict) -> tuple[str, bool]:
     """(발행용 HTML, 대표 인포그래픽 포함 여부)를 반환한다."""
-    infographic_html = build_infographic_html(content.title, content.body_html, video["video_id"])
+    infographic_html = build_infographic_html(
+        content.title, content.body_html, video["video_id"], focus_keyword=content.focus_keyword
+    )
     body_html = _mark_insight_blockquote(content.body_html)
     inner_html = (
         build_summary_box(content.summary_lines)
@@ -106,6 +109,10 @@ def main():
         summary_lines=["요약 1", "요약 2"],
         table_rows=[TableRow(항목="항목1", 현재="값1", 리스크="리스크1")],
         body_html="<h3>제목</h3><p>본문입니다.</p>",
+        focus_keyword="테스트",
+        meta_description="조립 확인용 테스트 메타 디스크립션입니다.",
+        slug="test-preview",
+        tags=["테스트"],
     )
     sample_video = {"video_id": "m67LrN1J-fg"}
 

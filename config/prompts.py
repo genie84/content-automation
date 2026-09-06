@@ -52,6 +52,16 @@ SYSTEM_INSTRUCTION = """\
 8. 투자/자산 관련 주제라면 <p><em>이 글은 정보 제공을 목적으로 하며, 투자·청약·법률 판단의
    근거로 사용하지 마세요.</em></p>
 9. <p>#태그1 #태그2 #태그3</p> 형식으로 관련 태그 3~5개.
+
+[SEO 메타데이터 — JSON의 별도 필드에 담아라, body_html 안에 넣지 마라]
+- focus_keyword: 이 글의 핵심 키워드 하나. 제목/첫 문단/소제목 중 최소 1곳 이상에
+  자연스럽게 포함되어야 한다(키워드를 억지로 쑤셔 넣지 말고, 실제로 그 단어가 이미
+  들어가도록 제목·본문을 써라).
+- meta_description: 120~155자. 감성적 후킹 문구보다 정보성 문장을 우선한다("이것만은
+  꼭 확인하세요" 같은 클릭베이트보다, 실제 내용을 요약하는 문장).
+- slug: 영문 소문자와 하이픈(-)만 사용, 3~6단어 (예: "samsung-electronics-q3-earnings").
+  한글·특수문자·언더스코어 금지.
+- tags: 5~8개, 너무 포괄적인 단어("경제", "뉴스") 대신 세부 키워드 위주로.
 """
 
 
@@ -77,18 +87,8 @@ QUALITY_REFERENCE_EXAMPLE = """\
 """
 
 
-def build_user_prompt(video: dict, source: dict, source_text: str, source_type: str) -> str:
-    source_label = "자막" if source_type == "transcript" else "영상 설명"
+def _json_output_instructions() -> str:
     return f"""\
-아래는 한 경제 유튜브 영상에서 다뤄진 내용({source_label})이다. 이 내용을 소재로 삼아
-위 시스템 지침을 지키는 블로그 글을 작성하라.
-
-톤 참고: {source['tone_note']}
-원본 영상 제목(참고용, 그대로 쓰지 말 것): {video['title']}
-
-{source_label}:
-{source_text}
-
 품질 참고 예시(다른 주제의 예시이니 내용·표현을 그대로 베끼지 말고, 소제목 구성의
 구체성·수치 활용·"지니의 생각"의 개인적 해석 깊이·톤만 이 수준으로 참고하라):
 {QUALITY_REFERENCE_EXAMPLE}
@@ -101,6 +101,39 @@ def build_user_prompt(video: dict, source: dict, source_text: str, source_type: 
   "table_rows": [
     {{"항목": "지표명(실제 확인되는 것만)", "현재": "실제 수치/값", "리스크": "설명"}}
   ],
-  "body_html": "위에서 설명한 9단계 구조를 모두 포함한 전체 본문 HTML"
+  "body_html": "위에서 설명한 9단계 구조를 모두 포함한 전체 본문 HTML",
+  "focus_keyword": "핵심 키워드 1개",
+  "meta_description": "120~155자 메타 디스크립션",
+  "slug": "영문-소문자-하이픈-슬러그",
+  "tags": ["태그1", "태그2", "태그3", "태그4", "태그5"]
 }}
 """
+
+
+def build_user_prompt(video: dict, source: dict, source_text: str, source_type: str) -> str:
+    source_label = "자막" if source_type == "transcript" else "영상 설명"
+    return f"""\
+아래는 한 경제 유튜브 영상에서 다뤄진 내용({source_label})이다. 이 내용을 소재로 삼아
+위 시스템 지침을 지키는 블로그 글을 작성하라.
+
+톤 참고: {source['tone_note']}
+원본 영상 제목(참고용, 그대로 쓰지 말 것): {video['title']}
+
+{source_label}:
+{source_text}
+
+{_json_output_instructions()}"""
+
+
+def build_user_prompt_from_topic(topic: str, category_label: str, source_text: str) -> str:
+    return f"""\
+아래는 실시간 검색 리서치를 통해 확인된 경제 이슈(카테고리: {category_label})에 대한
+사실관계다. 이 내용을 소재로 삼아 위 시스템 지침을 지키는 블로그 글을 작성하라. 이 글은
+특정 영상이 아니라 지니가 직접 리서치해서 쓰는 칼럼이다.
+
+오늘의 주제: {topic}
+
+리서치로 확인된 사실관계(출처 포함):
+{source_text}
+
+{_json_output_instructions()}"""

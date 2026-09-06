@@ -12,7 +12,7 @@ from pydantic import BaseModel
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 load_dotenv()
 
-from config.prompts import SYSTEM_INSTRUCTION, build_user_prompt
+from config.prompts import SYSTEM_INSTRUCTION, build_user_prompt, build_user_prompt_from_topic
 from config.sources import SOURCES
 from scripts.gemini_retry import call_with_retry
 from scripts.rss_collector import fetch_feed
@@ -34,6 +34,10 @@ class ReprocessedContent(BaseModel):
     summary_lines: list[str]
     table_rows: list[TableRow]
     body_html: str
+    focus_keyword: str
+    meta_description: str
+    slug: str
+    tags: list[str]
 
 
 GEMINI_TIMEOUT_MS = 120_000  # SDK 기본값은 무한대기라서 명시적으로 걸어둠. 이 값 자체가
@@ -128,7 +132,37 @@ def reprocess_content(
 
     from scripts.diagram_renderer import replace_diagram_markers
 
-    result.body_html = replace_diagram_markers(result.body_html, video["video_id"], client, model_name)
+    result.body_html = replace_diagram_markers(
+        result.body_html, video["video_id"], client, model_name, focus_keyword=result.focus_keyword
+    )
+    return result
+
+
+def reprocess_topic(topic: str, category_label: str, source_text: str, model_name: str, client: genai.Client) -> ReprocessedContent:
+    """리서치로 확인된 사실관계(source_text)를 소재로 지니 페르소나 글을 만든다.
+
+    영상 재가공(reprocess_content)과 페르소나/스키마는 동일하고, 소스가 영상 자막이
+    아니라 주제 리서치 결과라는 점만 다르다.
+    """
+    prompt = build_user_prompt_from_topic(topic, category_label, source_text)
+    response = call_with_retry(
+        client.models.generate_content,
+        model=model_name,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION,
+            response_mime_type="application/json",
+            response_schema=ReprocessedContent,
+        ),
+    )
+    result = ReprocessedContent.model_validate_json(response.text)
+
+    from scripts.diagram_renderer import replace_diagram_markers
+
+    synthetic_id = result.slug or "topic"
+    result.body_html = replace_diagram_markers(
+        result.body_html, synthetic_id, client, model_name, focus_keyword=result.focus_keyword
+    )
     return result
 
 

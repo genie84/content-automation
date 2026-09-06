@@ -139,7 +139,15 @@ def _safe_print(message: str) -> None:
         print(message.encode(encoding, errors="replace").decode(encoding))
 
 
-def replace_diagram_markers(body_html: str, video_id: str, client, model_name: str) -> str:
+def _seo_alt_text(title: str, focus_keyword: str) -> str:
+    if focus_keyword and focus_keyword not in title:
+        return f"{title} - {focus_keyword}"
+    return title
+
+
+def replace_diagram_markers(
+    body_html: str, video_id: str, client, model_name: str, focus_keyword: str = ""
+) -> str:
     if not MARKER_PATTERN.search(body_html):
         return body_html
 
@@ -156,8 +164,9 @@ def replace_diagram_markers(body_html: str, video_id: str, client, model_name: s
                     png_bytes = render_chart(spec, page)
                     filename = f"diagram-{video_id}-{uuid.uuid4().hex[:8]}.png"
                     media = upload_media(png_bytes, filename)
+                    alt = _seo_alt_text(spec.title, focus_keyword)
                     return (
-                        f'<img src="{media["source_url"]}" alt="{html.escape(spec.title)}" '
+                        f'<img src="{media["source_url"]}" alt="{html.escape(alt)}" '
                         'style="max-width:50%; display:block; margin:16px auto;" />'
                     )
                 except Exception as e:
