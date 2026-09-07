@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import uuid
+from typing import Literal
 
 from google.genai import types
 from playwright.sync_api import sync_playwright
@@ -35,15 +36,34 @@ class ChartItem(BaseModel):
 
 
 class ChartSpec(BaseModel):
+    chart_type: Literal["bar", "flow", "checklist", "skip"]
     title: str
     items: list[ChartItem]
 
 
+# "막대그래프를 숫자 비교가 아닌 내용(순서/단계, 전부 같은 결론, 관점 대비)에도 억지로
+# 쓰는" 문제(2026-09-06 실제 발행 글에서 발견)를 막기 위해, 렌더링 전에 먼저 이 지시문이
+# 어떤 시각화 형태에 맞는지 분류부터 시킨다.
 EXTRACT_SYSTEM_INSTRUCTION = """\
-너는 블로그 글 속 "도식화 지시" 문구를 읽고, 그 안에 이미 있는 항목과 수치만 뽑아
-막대 비교용 데이터로 정리하는 역할이다. 지시문에 없는 항목이나 수치를 절대 새로
-지어내지 마라. 2~4개 항목으로 정리하고, title은 지시문의 핵심을 12자 내외로
-요약하라. value는 지시문에 있는 표현을 그대로 짧게 옮겨라(예: "1%", "8~12%").
+너는 블로그 글 속 "도식화 지시" 문구를 읽고, 그 내용에 가장 적합한 시각화 형태를
+먼저 판단한 뒤, 그 형태에 맞는 데이터로 정리하는 역할이다.
+
+chart_type을 아래 기준으로 정하라:
+- "bar": 항목들이 서로 다른 실제 숫자값을 갖고 있어서 크기 비교가 의미 있는 경우.
+  예: 국가별 금리 4.78%, 3.0%, 5.2% / 매출 100억 vs 80억.
+- "flow": 항목들이 시간순·단계순으로 이어지는 흐름이나 프로세스인 경우(숫자 비교가
+  아님). 예: 철강 생산 → 부품 조달 → 현지 조립 → 판매.
+- "checklist": 여러 항목이 전부 같은 결론/상태를 공유하고 숫자 크기 비교가 아닌
+  경우. 예: 여러 국가가 전부 "수출 1조 달러 달성", 여러 원인이 전부 "약세 요인".
+- "skip": 위 셋 어디에도 안 맞는 경우(예: 이전 관점 vs 현재 관점처럼 단순 대비이거나,
+  시각화보다 글로 설명하는 게 더 명확한 경우). 이때 items는 빈 배열로 둬라.
+
+지시문에 없는 항목이나 수치를 절대 새로 지어내지 마라. items는 2~5개(skip 제외).
+- bar일 때: value는 지시문에 있는 실제 수치를 그대로(예: "4.78%", "8~12%").
+- flow일 때: value는 그 단계를 설명하는 5~10자 짧은 문구.
+- checklist일 때: value는 그 항목의 구체적 디테일을 담은 5~10자 짧은 문구(공통
+  결론을 반복하지 말고, 항목마다 다른 내용이어야 함).
+title은 지시문의 핵심을 12자 내외로 요약하라.
 """
 
 
@@ -66,20 +86,7 @@ def _numeric_weight(value: str) -> float:
     return float(match.group()) if match else 1.0
 
 
-def build_chart_html(spec: ChartSpec) -> str:
-    max_weight = max((_numeric_weight(item.value) for item in spec.items), default=1.0) or 1.0
-    rows_html = ""
-    for item in spec.items:
-        pct = max(_numeric_weight(item.value) / max_weight * 100, 4)
-        rows_html += f"""
-        <div class="row">
-          <div class="label">{html.escape(item.label)}</div>
-          <div class="bar-line">
-            <div class="bar-track"><div class="bar-fill" style="width:{pct:.1f}%"></div></div>
-            <div class="value">{html.escape(item.value)}</div>
-          </div>
-        </div>"""
-
+def _card_shell(title: str, body: str) -> str:
     return f"""\
 <!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -97,6 +104,31 @@ body {{ font-family: 'Noto Sans KR', sans-serif; }}
   padding: 56px 90px 50px;
 }}
 .title {{ font-size: 52px; font-weight: 700; color: {NAVY}; margin-bottom: 44px; }}
+</style></head>
+<body>
+<div id="card">
+  <div class="title">{html.escape(title)}</div>
+  {body}
+</div>
+</body></html>
+"""
+
+
+def _build_bar_body(items: list[ChartItem]) -> str:
+    max_weight = max((_numeric_weight(item.value) for item in items), default=1.0) or 1.0
+    rows_html = ""
+    for item in items:
+        pct = max(_numeric_weight(item.value) / max_weight * 100, 4)
+        rows_html += f"""
+        <div class="row">
+          <div class="label">{html.escape(item.label)}</div>
+          <div class="bar-line">
+            <div class="bar-track"><div class="bar-fill" style="width:{pct:.1f}%"></div></div>
+            <div class="value">{html.escape(item.value)}</div>
+          </div>
+        </div>"""
+    style = f"""\
+<style>
 .row {{ margin-bottom: 40px; }}
 .row:last-child {{ margin-bottom: 0; }}
 .label {{ font-size: 34px; font-weight: 500; color: {MUTED_COLOR}; margin-bottom: 14px; }}
@@ -109,14 +141,71 @@ body {{ font-family: 'Noto Sans KR', sans-serif; }}
   background: linear-gradient(90deg, {BLUE}, {NAVY});
 }}
 .value {{ font-size: 38px; font-weight: 700; color: {NAVY}; white-space: nowrap; }}
-</style></head>
-<body>
-<div id="card">
-  <div class="title">{html.escape(spec.title)}</div>
-  {rows_html}
-</div>
-</body></html>
-"""
+</style>"""
+    return style + rows_html
+
+
+def _build_flow_body(items: list[ChartItem]) -> str:
+    steps_html = ""
+    for i, item in enumerate(items):
+        if i > 0:
+            steps_html += '<div class="flow-arrow">→</div>'
+        steps_html += f"""
+        <div class="flow-step">
+          <div class="flow-box">
+            <div class="flow-label">{html.escape(item.label)}</div>
+            <div class="flow-caption">{html.escape(item.value)}</div>
+          </div>
+        </div>"""
+    style = f"""\
+<style>
+.flow-row {{ display: flex; align-items: stretch; }}
+.flow-step {{ flex: 1; display: flex; }}
+.flow-box {{
+  flex: 1; background: {BAR_TRACK_COLOR}; border-radius: 16px; padding: 28px 18px;
+  text-align: center; display: flex; flex-direction: column; justify-content: center;
+}}
+.flow-label {{ font-size: 28px; font-weight: 700; color: {NAVY}; margin-bottom: 10px; }}
+.flow-caption {{ font-size: 20px; color: {MUTED_COLOR}; line-height: 1.4; }}
+.flow-arrow {{ font-size: 40px; color: {BLUE}; font-weight: 700; display: flex; align-items: center; padding: 0 10px; }}
+</style>"""
+    return style + f'<div class="flow-row">{steps_html}</div>'
+
+
+def _build_checklist_body(items: list[ChartItem]) -> str:
+    rows_html = ""
+    for item in items:
+        rows_html += f"""
+        <div class="check-row">
+          <div class="check-icon">✓</div>
+          <div class="check-text">
+            <div class="check-label">{html.escape(item.label)}</div>
+            <div class="check-caption">{html.escape(item.value)}</div>
+          </div>
+        </div>"""
+    style = f"""\
+<style>
+.check-row {{ display: flex; align-items: flex-start; gap: 22px; margin-bottom: 30px; }}
+.check-row:last-child {{ margin-bottom: 0; }}
+.check-icon {{
+  width: 46px; height: 46px; border-radius: 50%; background: {BLUE}; color: #ffffff;
+  display: flex; align-items: center; justify-content: center; font-size: 26px;
+  font-weight: 700; flex-shrink: 0;
+}}
+.check-label {{ font-size: 32px; font-weight: 700; color: {NAVY}; margin-bottom: 6px; }}
+.check-caption {{ font-size: 22px; color: {MUTED_COLOR}; line-height: 1.4; }}
+</style>"""
+    return style + rows_html
+
+
+def build_chart_html(spec: ChartSpec) -> str:
+    if spec.chart_type == "flow":
+        body = _build_flow_body(spec.items)
+    elif spec.chart_type == "checklist":
+        body = _build_checklist_body(spec.items)
+    else:
+        body = _build_bar_body(spec.items)
+    return _card_shell(spec.title, body)
 
 
 RENDER_TIMEOUT_MS = 15_000  # 이 값 안에 안 끝나면 TimeoutError를 던짐(무한 hang 방지)
@@ -161,6 +250,8 @@ def replace_diagram_markers(
                 marker_text = match.group(1)
                 try:
                     spec = extract_chart_spec(marker_text, client, model_name)
+                    if spec.chart_type == "skip" or not spec.items:
+                        return ""
                     png_bytes = render_chart(spec, page)
                     filename = f"diagram-{video_id}-{uuid.uuid4().hex[:8]}.png"
                     media = upload_media(png_bytes, filename)
