@@ -39,7 +39,7 @@ def main():
     client = get_client()
     model_name = resolve_flash_model(client)
     content = reprocess_content(video, source, model_name, client)
-    content_html, _has_infographic = assemble_html(content, video)
+    content_html, _has_infographic, _featured_media_id = assemble_html(content, video)
 
     post_id = get_saved_post_id()
     if post_id:

@@ -20,6 +20,7 @@ def _post_payload(
     excerpt: str = None,
     slug: str = None,
     tags: list[int] = None,
+    featured_media: int = None,
 ) -> dict:
     payload = {
         "title": title,
@@ -33,6 +34,8 @@ def _post_payload(
         payload["slug"] = slug
     if tags is not None:
         payload["tags"] = tags
+    if featured_media is not None:
+        payload["featured_media"] = featured_media
     return payload
 
 
@@ -44,11 +47,12 @@ def publish_post(
     excerpt: str = None,
     slug: str = None,
     tags: list[int] = None,
+    featured_media: int = None,
 ) -> dict:
     response = requests.post(
         f"{WP_BASE_URL}/wp-json/wp/v2/posts",
         auth=(os.environ["WP_USERNAME"], os.environ["WP_APP_PASSWORD"]),
-        json=_post_payload(title, content_html, status, categories, excerpt, slug, tags),
+        json=_post_payload(title, content_html, status, categories, excerpt, slug, tags, featured_media),
         timeout=30,
     )
     response.raise_for_status()
@@ -64,11 +68,12 @@ def update_post(
     excerpt: str = None,
     slug: str = None,
     tags: list[int] = None,
+    featured_media: int = None,
 ) -> dict:
     response = requests.post(
         f"{WP_BASE_URL}/wp-json/wp/v2/posts/{post_id}",
         auth=(os.environ["WP_USERNAME"], os.environ["WP_APP_PASSWORD"]),
-        json=_post_payload(title, content_html, status, categories, excerpt, slug, tags),
+        json=_post_payload(title, content_html, status, categories, excerpt, slug, tags, featured_media),
         timeout=30,
     )
     response.raise_for_status()

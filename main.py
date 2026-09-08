@@ -27,7 +27,7 @@ def run_video_track(client, model_name):
         for video in new_videos:
             try:
                 content = reprocess_content(video, source, model_name, client)
-                content_html, has_infographic = assemble_html(content, video)
+                content_html, has_infographic, featured_media_id = assemble_html(content, video)
                 tag_ids = resolve_tag_ids(content.tags)
                 result = publish_post(
                     content.title,
@@ -36,6 +36,7 @@ def run_video_track(client, model_name):
                     excerpt=content.meta_description,
                     slug=content.slug,
                     tags=tag_ids,
+                    featured_media=featured_media_id,
                 )
                 print(f"  - 발행됨(draft): {content.title} → {result['link']}")
 
@@ -66,7 +67,7 @@ def run_topic_track(client, model_name):
         content = reprocess_topic(candidate.topic, category["label"], source_text, model_name, client)
 
         video = {"video_id": content.slug or "topic"}
-        content_html, has_infographic = assemble_html(content, video)
+        content_html, has_infographic, featured_media_id = assemble_html(content, video)
         tag_ids = resolve_tag_ids(content.tags)
         result = publish_post(
             content.title,
@@ -76,6 +77,7 @@ def run_topic_track(client, model_name):
             excerpt=content.meta_description,
             slug=content.slug,
             tags=tag_ids,
+            featured_media=featured_media_id,
         )
         print(f"  - 발행됨(draft, 주제선정): {content.title} → {result['link']}")
 

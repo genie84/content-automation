@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 load_dotenv()
@@ -35,10 +35,16 @@ class ReprocessedContent(BaseModel):
     summary_lines: list[str]
     table_rows: list[TableRow]
     body_html: str
-    focus_keyword: str
-    meta_description: str
-    slug: str
-    tags: list[str]
+    # SEO 필드에 min_length를 걸어둔다 — 스키마가 빈 문자열/빈 배열도 "유효"로 통과시켜서
+    # 모델이 가끔 빈 값을 내놓을 때 조용히 SEO 정보 없이 발행되는 사례가 실제로 있었음
+    # (post #2470: slug/본문 해시태그는 정상인데 meta_description/tags만 비어있었음).
+    # 이제는 빈 값이면 검증 실패로 처리되어(reprocess_content가 예외를 던짐) 그 글은
+    # 이번 주기에 발행되지 않고 다음 실행 때 재시도된다 — SEO 없이 조용히 새는 것보다
+    # 안전한 실패가 낫다는 판단.
+    focus_keyword: str = Field(min_length=1)
+    meta_description: str = Field(min_length=1)
+    slug: str = Field(min_length=1)
+    tags: list[str] = Field(min_length=1)
 
 
 class NaverContent(BaseModel):
