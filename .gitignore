@@ -220,7 +220,8 @@ __marimo__/
 # Local prompt-tuning scratch state
 data/playground_post_id.txt
 
-# 네이버 로그인 세션(실제 브라우저 프로필, 쿠키 포함) — 절대 커밋하지 않는다
+# 네이버 로그인 세션(쿠키 포함) — 절대 커밋하지 않는다
 data/naver_browser_profile/
+data/naver_storage_state.json
 data/naver_draft_pending.json
 data/naver_infographic_pending.png
