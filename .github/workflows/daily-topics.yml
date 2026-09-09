@@ -1,11 +1,9 @@
-name: Daily Content Pipeline
+name: Daily Topic-Selection Pipeline
 
+# 삼프로TV 영상 트랙(daily-post.yml)과 완전히 별개 스케줄. 09:00 KST = 00:00 UTC.
 on:
   schedule:
-    - cron: "45 22 * * *"  # 07:45 KST
-    - cron: "0 1 * * *"    # 10:00 KST
-    - cron: "0 5 * * *"    # 14:00 KST
-    - cron: "0 10 * * *"   # 19:00 KST
+    - cron: "0 0 * * *"  # 09:00 KST
   workflow_dispatch: {}
 
 permissions:
@@ -33,7 +31,7 @@ jobs:
       - name: Install Playwright Chromium (+ OS deps)
         run: playwright install --with-deps chromium
 
-      - run: python main.py
+      - run: python main.py --topics
         timeout-minutes: 25
         env:
           PYTHONUNBUFFERED: "1"
@@ -46,5 +44,5 @@ jobs:
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update pipeline state (seen videos / model cache)"
-          file_pattern: "data/seen_videos.json data/resolved_model.json"
+          commit_message: "chore: update topic track state (history / model cache)"
+          file_pattern: "data/topic_history.json data/topic_track_state.json data/resolved_model.json"

@@ -104,10 +104,14 @@ score는 1~10 사이 정수로, 화제성과 시의성이 높을수록 높게 �
     return TopicCandidate.model_validate_json(response.text)
 
 
-def research_and_select_topic(client, model_name: str) -> tuple[dict, TopicCandidate]:
-    """카테고리 4개를 각각 리서치·스코어링한 뒤 가장 점수 높은 (카테고리, 후보)를 고른다."""
+def research_all_categories(client, model_name: str) -> list[tuple[dict, TopicCandidate]]:
+    """카테고리 4개를 전부 리서치·스코어링해서 (카테고리, 후보) 목록을 반환한다.
+    최근 14일 내 중복으로 걸러진 카테고리나 리서치 자체가 실패한 카테고리는 결과에서
+    빠진다(2026-09-09부터: 예전에는 이 중 점수 최고 1개만 쓰고 나머지는 버렸는데, 이제
+    4개 카테고리 전부 각각 발행한다 — 아래 research_and_select_topic은 그 이전 방식이
+    필요할 때를 위해 남겨둠)."""
     history = _load_topic_history()
-    candidates = []
+    results = []
     for category in TOPIC_CATEGORIES:
         recent_topics = [h["topic"] for h in history if h["category_id"] == category["id"]]
         try:
@@ -115,14 +119,19 @@ def research_and_select_topic(client, model_name: str) -> tuple[dict, TopicCandi
             if _is_recent_duplicate(candidate.topic, recent_topics):
                 print(f"  - '{category['label']}' 후보가 최근 주제와 중복돼 제외: {candidate.topic}")
                 continue
-            candidates.append((category, candidate))
+            results.append((category, candidate))
         except Exception as e:
             print(f"  - '{category['label']}' 카테고리 리서치 실패: {type(e).__name__}: {e}")
+    return results
 
-    if not candidates:
+
+def research_and_select_topic(client, model_name: str) -> tuple[dict, TopicCandidate]:
+    """카테고리 4개 중 가장 점수 높은 (카테고리, 후보) 1개만 고른다(예전 방식, 현재
+    main.py는 안 씀 — research_all_categories로 4개 다 처리함)."""
+    results = research_all_categories(client, model_name)
+    if not results:
         raise RuntimeError("모든 카테고리에서 주제 리서치에 실패했거나 전부 중복으로 제외되었습니다.")
-
-    return max(candidates, key=lambda pair: pair[1].score)
+    return max(results, key=lambda pair: pair[1].score)
 
 
 def verify_facts(candidate: TopicCandidate, category: dict, client, model_name: str) -> VerifiedFacts:
