@@ -230,19 +230,26 @@ def _build_paragraph_html(html_fragment: str) -> str:
     return f"<p>{''.join(parts)}</p>"
 
 
+STRIPE_LIGHT = "#EEF1F6"  # 옅은 남색 계열(짝수 행 줄무늬)
+
+
 def _build_table_html(table_rows: list[dict]) -> str:
+    """테두리 없이 줄무늬 배경으로 구분되는 표. 헤더는 네이비+흰 글자 그대로 유지."""
     if not table_rows:
         return ""
     headers = list(table_rows[0].keys())
     header_cells = "".join(
-        f'<td style="background-color:{actions.NAVY}; color:{actions.WHITE}; font-weight:bold;">{html.escape(h)}</td>'
+        f'<td style="background-color:{actions.NAVY}; color:{actions.WHITE}; font-weight:bold; border:none;">{html.escape(h)}</td>'
         for h in headers
     )
     body_rows = ""
-    for row in table_rows:
-        cells = "".join(f"<td>{html.escape(str(v))}</td>" for v in row.values())
+    for i, row in enumerate(table_rows):
+        bg = "#ffffff" if i % 2 == 0 else STRIPE_LIGHT
+        cells = "".join(
+            f'<td style="background-color:{bg}; border:none;">{html.escape(str(v))}</td>' for v in row.values()
+        )
         body_rows += f"<tr>{cells}</tr>"
-    return f"<table><tr>{header_cells}</tr>{body_rows}</table>"
+    return f'<table style="border-collapse:collapse; border:none;"><tr>{header_cells}</tr>{body_rows}</table>'
 
 
 def build_styled_body_html(body_html: str, table_rows: list[dict]) -> str:
