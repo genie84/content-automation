@@ -5,9 +5,18 @@ GitHub Actions 스케줄(09:00 KST)로 실행되며 여기서는 호출하지 �
 import sys
 
 from config.sources import SOURCES
-from scripts.gemini_reprocessor import get_client, resolve_flash_model, reprocess_content, reprocess_topic
+from scripts.gemini_reprocessor import (
+    get_client,
+    resolve_flash_model,
+    reprocess_content,
+    reprocess_content_naver,
+    reprocess_topic,
+    reprocess_topic_naver,
+)
 from scripts.html_assembler import assemble_html
 from scripts.kakao_notifier import send_kakao_notification
+from scripts.naver_infographic_generator import generate_infographic as generate_naver_infographic
+from scripts.naver_publisher import queue_naver_draft
 from scripts.rss_collector import collect_new_videos, load_seen_videos, save_seen_videos
 from scripts.topic_researcher import (
     facts_to_source_text,
@@ -18,6 +27,23 @@ from scripts.topic_researcher import (
     verify_facts,
 )
 from scripts.wordpress_publisher import publish_post, resolve_tag_ids
+
+
+def _queue_naver_version(naver_content, topic: str, category_label: str) -> None:
+    """지니(워드프레스) 발행 뒤에 같은 소스로 서현이 아빠(네이버) 버전을 만들어 로컬
+    발행 대기 큐에 넣는다. 네이버 자체 발행은 여전히 로컬 수동 실행(원칙 유지) —
+    여기서는 콘텐츠와 대표 이미지를 만들어 큐에 쌓아두기만 한다."""
+    naver_image = generate_naver_infographic(naver_content.title, naver_content.body_html)
+    queue_naver_draft(
+        title=naver_content.title,
+        summary_lines=naver_content.summary_lines,
+        table_rows=[r.model_dump() for r in naver_content.table_rows],
+        body_html=naver_content.body_html,
+        topic=topic,
+        category_label=category_label,
+        image_bytes=naver_image,
+    )
+    print(f"  - 네이버용(서현이 아빠) 버전 큐에 저장됨: {naver_content.title}")
 
 
 def run_video_track(client, model_name):
@@ -48,6 +74,12 @@ def run_video_track(client, model_name):
                     send_kakao_notification(content.title, result["link"], has_infographic)
                 except Exception as e:
                     print(f"  - 카카오 알림 실패(발행은 정상): {type(e).__name__}: {e}")
+
+                try:
+                    naver_content = reprocess_content_naver(video, source, model_name, client)
+                    _queue_naver_version(naver_content, topic=video["title"], category_label=source["name"])
+                except Exception as e:
+                    print(f"  - 네이버용 버전 생성 실패(워드프레스 발행은 정상): {type(e).__name__}: {e}")
 
                 seen_ids.add(video["video_id"])
                 seen_videos[source["id"]] = sorted(seen_ids)
@@ -84,6 +116,13 @@ def _publish_topic_post(category: dict, candidate, client, model_name: str) -> N
         send_kakao_notification(content.title, result["link"], has_infographic)
     except Exception as e:
         print(f"  - 카카오 알림 실패(발행은 정상): {type(e).__name__}: {e}")
+
+    try:
+        # source_text 재사용 — verify_facts(그라운딩, 유료)를 또 호출하지 않는다.
+        naver_content = reprocess_topic_naver(candidate.topic, category["label"], source_text, model_name, client)
+        _queue_naver_version(naver_content, topic=candidate.topic, category_label=category["label"])
+    except Exception as e:
+        print(f"  - 네이버용 버전 생성 실패(워드프레스 발행은 정상): {type(e).__name__}: {e}")
 
     record_topic_history(candidate.topic, category["id"])
 

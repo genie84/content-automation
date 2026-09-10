@@ -223,5 +223,6 @@ data/playground_post_id.txt
 # 네이버 로그인 세션(쿠키 포함) — 절대 커밋하지 않는다
 data/naver_browser_profile/
 data/naver_storage_state.json
-data/naver_draft_pending.json
-data/naver_infographic_pending.png
+
+# data/naver_queue/ 는 반대로 "커밋 대상"이다 — 콘텐츠 생성은 클라우드(GitHub Actions)에서,
+# 네이버 발행은 로컬에서 일어나서 이 큐가 그 둘을 잇는 다리 역할을 한다(git push/pull로 전달).

@@ -57,6 +57,35 @@ SYSTEM_INSTRUCTION_NAVER = """\
 """
 
 
+def build_user_prompt_naver(video: dict, source: dict, source_text: str, source_type: str) -> str:
+    """삼프로TV 영상(자막/설명)을 서현이 아빠 페르소나로 재가공하는 프롬프트.
+    지니용(config/prompts.py의 build_user_prompt)과 소스는 동일(같은 source_text를
+    재사용), 페르소나/톤만 다르게 재작성한다."""
+    source_label = "자막" if source_type == "transcript" else "영상 설명"
+    return f"""\
+아래는 한 경제 유튜브 영상에서 다뤄진 내용({source_label})이다. 이 내용을 소재로 삼아
+위 시스템 지침을 지키는 네이버 블로그 글을 작성하라.
+
+톤 참고: {source['tone_note']}
+원본 영상 제목(참고용, 그대로 쓰지 말 것): {video['title']}
+
+{source_label}:
+{source_text}
+
+다음 JSON 형식으로만 응답하라. 다른 설명이나 마크다운 코드블록 표시(```) 없이 순수
+JSON만 출력한다.
+
+{{
+  "title": "매력적인 제목 (30자 이내)",
+  "summary_lines": ["핵심 요약 1줄", "핵심 요약 2줄", "핵심 요약 3줄"],
+  "table_rows": [
+    {{"항목": "지표명(실제 확인되는 것만)", "현재": "실제 수치/값", "리스크": "설명"}}
+  ],
+  "body_html": "위에서 설명한 3-1 표준 구조를 모두 포함한 전체 본문 HTML"
+}}
+"""
+
+
 def build_user_prompt_from_topic_naver(topic: str, category_label: str, source_text: str) -> str:
     return f"""\
 아래는 실시간 검색 리서치를 통해 확인된 경제 이슈(카테고리: {category_label})에 대한

@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 load_dotenv()
 
 from config.prompts import SYSTEM_INSTRUCTION, build_user_prompt, build_user_prompt_from_topic
-from config.prompts_naver import SYSTEM_INSTRUCTION_NAVER, build_user_prompt_from_topic_naver
+from config.prompts_naver import SYSTEM_INSTRUCTION_NAVER, build_user_prompt_from_topic_naver, build_user_prompt_naver
 from config.sources import SOURCES
 from scripts.gemini_retry import call_with_retry
 from scripts.rss_collector import fetch_feed
@@ -151,6 +151,31 @@ def reprocess_content(
     result.body_html = replace_diagram_markers(
         result.body_html, video["video_id"], client, model_name, focus_keyword=result.focus_keyword
     )
+    return result
+
+
+def reprocess_content_naver(
+    video: dict, source: dict, model_name: str, client: genai.Client
+) -> NaverContent:
+    """같은 영상(source_text 재조회)을 서현이 아빠 페르소나로 재가공한다
+    (reprocess_content의 네이버용 자매 함수 — 스키마와 SYSTEM_INSTRUCTION만 다르다)."""
+    source_text, source_type = get_source_text(video)
+    prompt = build_user_prompt_naver(video, source, source_text, source_type)
+    response = call_with_retry(
+        client.models.generate_content,
+        model=model_name,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION_NAVER,
+            response_mime_type="application/json",
+            response_schema=NaverContent,
+        ),
+    )
+    result = NaverContent.model_validate_json(response.text)
+
+    from scripts.diagram_renderer import replace_diagram_markers
+
+    result.body_html = replace_diagram_markers(result.body_html, video["video_id"] + "-naver", client, model_name)
     return result
 
 

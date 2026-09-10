@@ -25,12 +25,23 @@
 삽입 지점마다 에디터의 비동기 렌더링과 경합해서 내용 순서가 실행마다 다르게 꼬이는
 문제가 9차례 반복 테스트로도 안 잡혔다 — 클립보드 붙여넣기는 한 번에 안정적으로 성공함
 (자세한 내용은 `naver_editor_actions.py` 상단 참고).
+
+(v5, 2026-09-09): 대기 중인 초안을 "1건짜리 파일"에서 "여러 건이 쌓이는 큐
+(data/naver_queue/)"로 바꿈 — 삼프로TV 영상 트랙(하루 최대 4회)과 주제선정 트랙
+(하루 1회, 카테고리 4개)이 이제 둘 다 서현이 아빠 버전을 만들어 큐에 쌓기 때문에,
+로컬 실행 한 번으로 그 사이 쌓인 걸 전부 처리해야 한다. **중요**: 콘텐츠 생성은
+클라우드(GitHub Actions)에서 일어나고 네이버 발행은 로컬에서 일어나므로, 큐 파일은
+git으로 커밋되어 클라우드→로컬로 전달된다(예전 1건짜리 방식은 로컬 전용이라 git
+추적 제외였는데, 이제는 반대로 커밋 대상이다 — .gitignore도 그에 맞게 수정함). 로컬에서
+이 스크립트를 실행하기 전에 `git pull`로 최신 큐를 받아와야 한다.
 """
 import html
 import json
 import os
 import re
+import sys
 import time
+import uuid
 
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
@@ -41,8 +52,7 @@ load_dotenv()
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 STORAGE_STATE_PATH = os.path.join(DATA_DIR, "naver_storage_state.json")
-PENDING_DRAFT_PATH = os.path.join(DATA_DIR, "naver_draft_pending.json")
-PENDING_IMAGE_PATH = os.path.join(DATA_DIR, "naver_infographic_pending.png")
+QUEUE_DIR = os.path.join(DATA_DIR, "naver_queue")
 
 LOGIN_URL = "https://nid.naver.com/nidlogin.login"
 
@@ -52,39 +62,54 @@ LOGIN_POLL_INTERVAL_SEC = 2
 POST_ACTION_LINGER_SEC = 15
 
 
-def save_pending_draft(title: str, summary_lines: list[str], table_rows: list[dict], body_html: str, topic: str, category_label: str, image_bytes: bytes | None) -> None:
-    """지니 트랙(main.py, 클라우드)이 같은 리서치 결과로 만든 서현이 아빠 초안을 로컬
-    대기열에 저장한다. 실제 네이버 발행은 로컬에서 이 스크립트를 실행할 때 이뤄진다."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(PENDING_DRAFT_PATH, "w", encoding="utf-8") as f:
-        json.dump(
-            {
-                "title": title,
-                "summary_lines": summary_lines,
-                "table_rows": table_rows,
-                "body_html": body_html,
-                "topic": topic,
-                "category_label": category_label,
-                "has_image": image_bytes is not None,
-            },
-            f,
-            ensure_ascii=False,
-            indent=2,
-        )
+def queue_naver_draft(
+    title: str,
+    summary_lines: list[str],
+    table_rows: list[dict],
+    body_html: str,
+    topic: str,
+    category_label: str,
+    image_bytes: bytes | None,
+) -> str:
+    """지니 트랙(main.py, 클라우드)이 같은 소스(영상 자막 또는 리서치 사실관계)로 만든
+    서현이 아빠 초안 하나를 큐에 추가한다. 실제 네이버 발행은 로컬에서 이 파일의
+    publish_all_pending_drafts_to_naver()를 실행할 때 큐에 쌓인 걸 전부 처리한다.
+    반환값은 큐 항목 id."""
+    os.makedirs(QUEUE_DIR, exist_ok=True)
+    item_id = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
+    payload = {
+        "title": title,
+        "summary_lines": summary_lines,
+        "table_rows": table_rows,
+        "body_html": body_html,
+        "topic": topic,
+        "category_label": category_label,
+        "has_image": image_bytes is not None,
+    }
+    with open(os.path.join(QUEUE_DIR, f"{item_id}.json"), "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
     if image_bytes is not None:
-        with open(PENDING_IMAGE_PATH, "wb") as f:
+        with open(os.path.join(QUEUE_DIR, f"{item_id}.png"), "wb") as f:
             f.write(image_bytes)
+    return item_id
 
 
-def load_pending_draft() -> dict | None:
-    if not os.path.exists(PENDING_DRAFT_PATH):
-        return None
-    with open(PENDING_DRAFT_PATH, "r", encoding="utf-8") as f:
+def list_queued_drafts() -> list[str]:
+    """대기 중인 큐 항목 id 목록을 생성 순서대로 반환한다(id 앞부분이 타임스탬프라
+    자연스럽게 시간순 정렬됨)."""
+    if not os.path.exists(QUEUE_DIR):
+        return []
+    return sorted(f[:-5] for f in os.listdir(QUEUE_DIR) if f.endswith(".json"))
+
+
+def load_queued_draft(item_id: str) -> dict:
+    with open(os.path.join(QUEUE_DIR, f"{item_id}.json"), "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def clear_pending_draft() -> None:
-    for path in (PENDING_DRAFT_PATH, PENDING_IMAGE_PATH):
+def remove_queued_draft(item_id: str) -> None:
+    for ext in (".json", ".png"):
+        path = os.path.join(QUEUE_DIR, f"{item_id}{ext}")
         if os.path.exists(path):
             os.remove(path)
 
@@ -315,24 +340,42 @@ def save_as_draft(frame) -> None:
     time.sleep(2)
 
 
-def publish_pending_draft_to_naver(blog_id: str | None = None) -> bool:
-    """대기 중인 초안이 있으면 네이버 에디터에 서식을 입혀 임시저장까지 한다.
-    발행(publish)은 절대 하지 않는다 — 사용자가 네이버 화면에서 직접 확인 후 클릭한다.
-    성공하면 True, 대기 중인 초안이 없거나 실패하면 False."""
-    content = load_pending_draft()
-    if content is None:
-        print("대기 중인 네이버 초안이 없습니다.")
-        return False
+def _goto_write_page(page, blog_id: str):
+    page.goto(f"https://blog.naver.com/{blog_id}?Redirect=Write", wait_until="domcontentloaded", timeout=30_000)
+    page.wait_for_timeout(2000)
+
+    # mainFrame이 아직 안 붙어있을 때가 가끔 있어서(StopIteration 실제 발생함) 재시도.
+    for _ in range(5):
+        frame = next((f for f in page.frames if f.name == "mainFrame"), None)
+        if frame is not None:
+            return frame
+        page.wait_for_timeout(1000)
+    raise RuntimeError("mainFrame을 찾지 못했습니다(페이지 로딩 실패 가능성)")
+
+
+def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
+    """큐에 쌓인 초안을 전부 순서대로 네이버 에디터에 서식을 입혀 임시저장한다(브라우저는
+    한 번만 띄우고 항목마다 재사용). 발행(publish)은 절대 하지 않는다 — 사용자가 네이버
+    화면에서 직접 확인 후 클릭한다. 항목 하나가 실패해도 큐에 남겨두고(다음 실행 때
+    재시도) 나머지는 계속 처리한다. {"success": N, "failed": N} 반환."""
+    item_ids = list_queued_drafts()
+    if not item_ids:
+        print("대기 중인 네이버 초안이 없습니다(큐가 비어있음 — git pull로 최신 큐를 받았는지 확인해보세요).")
+        return {"success": 0, "failed": 0}
 
     blog_id = blog_id or os.environ.get("NAVER_BLOG_ID")
     if not blog_id:
         print("NAVER_BLOG_ID가 설정되어 있지 않습니다. .env에 추가해주세요.")
-        return False
+        return {"success": 0, "failed": 0}
 
     storage_state = STORAGE_STATE_PATH if os.path.exists(STORAGE_STATE_PATH) else None
     if storage_state is None:
         print("저장된 네이버 로그인 세션이 없습니다. 먼저 login_and_explore()로 로그인해주세요.")
-        return False
+        return {"success": 0, "failed": 0}
+
+    print(f"대기 중인 초안 {len(item_ids)}건을 처리합니다.")
+    success = 0
+    failed = 0
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -341,40 +384,36 @@ def publish_pending_draft_to_naver(blog_id: str | None = None) -> bool:
         # navigator.clipboard.write()가 권한 오류를 던진다.
         context.grant_permissions(["clipboard-read", "clipboard-write"])
         page = context.new_page()
-        try:
-            page.goto(f"https://blog.naver.com/{blog_id}?Redirect=Write", wait_until="domcontentloaded", timeout=30_000)
-            page.wait_for_timeout(2000)
 
-            # mainFrame이 아직 안 붙어있을 때가 가끔 있어서(StopIteration 실제 발생함)
-            # 몇 번 재시도한다.
-            frame = None
-            for _ in range(5):
-                frame = next((f for f in page.frames if f.name == "mainFrame"), None)
-                if frame is not None:
-                    break
-                page.wait_for_timeout(1000)
-            if frame is None:
-                raise RuntimeError("mainFrame을 찾지 못했습니다(페이지 로딩 실패 가능성)")
+        for item_id in item_ids:
+            content = load_queued_draft(item_id)
+            print(f"  - 처리 중: {content['title']}")
+            try:
+                frame = _goto_write_page(page, blog_id)
+                apply_formatting(frame, page, content)
+                save_as_draft(frame)
+                remove_queued_draft(item_id)
+                success += 1
+                print(f"    임시저장 완료.")
+            except Exception as e:
+                failed += 1
+                print(f"    실패(큐에 남겨둠, 다음 실행 때 재시도): {type(e).__name__}: {e}")
+                os.makedirs(DATA_DIR, exist_ok=True)
+                try:
+                    page.screenshot(path=os.path.join(DATA_DIR, f"naver_queue_error_{item_id}.png"))
+                except Exception:
+                    pass
 
-            apply_formatting(frame, page, content)
+        context.storage_state(path=STORAGE_STATE_PATH)
+        context.close()
+        browser.close()
 
-            os.makedirs(DATA_DIR, exist_ok=True)
-            page.screenshot(path=os.path.join(DATA_DIR, "naver_draft_result.png"))
-
-            save_as_draft(frame)
-            context.storage_state(path=STORAGE_STATE_PATH)
-            print("네이버 임시저장 완료. 최종 발행은 네이버 블로그 화면에서 직접 확인 후 진행해주세요.")
-            clear_pending_draft()
-            return True
-        except Exception as e:
-            print(f"네이버 발행 자동화 실패: {type(e).__name__}: {e}")
-            os.makedirs(DATA_DIR, exist_ok=True)
-            page.screenshot(path=os.path.join(DATA_DIR, "naver_draft_error.png"))
-            return False
-        finally:
-            context.close()
-            browser.close()
+    print(f"완료: 성공 {success}건, 실패 {failed}건. 최종 발행은 네이버 블로그 화면에서 직접 확인 후 진행해주세요.")
+    return {"success": success, "failed": failed}
 
 
 if __name__ == "__main__":
-    login_and_explore()
+    if "--login" in sys.argv:
+        login_and_explore()
+    else:
+        publish_all_pending_drafts_to_naver()
