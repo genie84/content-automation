@@ -70,12 +70,17 @@ def build_youtube_embed(video_id: str) -> str:
     )
 
 
-def build_infographic_html(title: str, body_html: str, video_id: str, focus_keyword: str = "") -> tuple[str, int | None]:
-    """(본문에 넣을 <img> HTML, 워드프레스 미디어 ID)를 반환한다. 미디어 ID는
-    featured_media(대표 이미지) 필드에 매핑하는 데 쓴다 — 실패 시 (\"\", None)."""
+def build_infographic_html(
+    title: str, body_html: str, video_id: str, focus_keyword: str = ""
+) -> tuple[str, int | None, bytes | None]:
+    """(본문에 넣을 <img> HTML, 워드프레스 미디어 ID, 원본 PNG 바이트)를 반환한다.
+    미디어 ID는 featured_media(대표 이미지) 필드에 매핑하는 데 쓰고, PNG 바이트는
+    네이버(서현이 아빠) 쪽에서 같은 이미지를 재사용할 때 쓴다(채널마다 따로 만들면
+    비용이 2배가 돼서, 지니용 16:9 한 장만 만들고 네이버에도 그대로 재사용하기로
+    확정함, 2026-09-10). 실패 시 ("", None, None)."""
     png_bytes = generate_infographic(title, body_html)
     if png_bytes is None:
-        return "", None
+        return "", None, None
     try:
         filename = f"infographic-{video_id}-{uuid.uuid4().hex[:8]}.png"
         media = upload_media(png_bytes, filename)
@@ -84,15 +89,16 @@ def build_infographic_html(title: str, body_html: str, video_id: str, focus_keyw
             f'<img src="{media["source_url"]}" alt="{html.escape(alt)}" '
             'style="max-width:100%; display:block; margin:24px auto;" />'
         )
-        return img_html, media["id"]
+        return img_html, media["id"], png_bytes
     except Exception as e:
         print(f"  - 대표 인포그래픽 업로드 실패(이미지 없이 계속 진행): {type(e).__name__}: {e}")
-        return "", None
+        return "", None, None
 
 
-def assemble_html(content: ReprocessedContent, video: dict) -> tuple[str, bool, int | None]:
-    """(발행용 HTML, 대표 인포그래픽 포함 여부, featured_media용 미디어 ID)를 반환한다."""
-    infographic_html, featured_media_id = build_infographic_html(
+def assemble_html(content: ReprocessedContent, video: dict) -> tuple[str, bool, int | None, bytes | None]:
+    """(발행용 HTML, 대표 인포그래픽 포함 여부, featured_media용 미디어 ID, 원본 PNG
+    바이트)를 반환한다."""
+    infographic_html, featured_media_id, infographic_bytes = build_infographic_html(
         content.title, content.body_html, video["video_id"], focus_keyword=content.focus_keyword
     )
     body_html = _mark_insight_blockquote(content.body_html)
@@ -103,7 +109,7 @@ def assemble_html(content: ReprocessedContent, video: dict) -> tuple[str, bool, 
         + infographic_html
     )
     result_html = f'{GENIE_POST_STYLE}<div class="genie-post">{inner_html}</div>'
-    return result_html, bool(infographic_html), featured_media_id
+    return result_html, bool(infographic_html), featured_media_id, infographic_bytes
 
 
 def main():
@@ -119,7 +125,7 @@ def main():
     )
     sample_video = {"video_id": "m67LrN1J-fg"}
 
-    result_html, has_infographic, featured_media_id = assemble_html(sample_content, sample_video)
+    result_html, has_infographic, featured_media_id, _infographic_bytes = assemble_html(sample_content, sample_video)
     print(f"인포그래픽 포함 여부: {has_infographic}, featured_media: {featured_media_id}")
     out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "preview.html")
     with open(out_path, "w", encoding="utf-8") as f:

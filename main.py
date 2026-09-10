@@ -15,7 +15,6 @@ from scripts.gemini_reprocessor import (
 )
 from scripts.html_assembler import assemble_html
 from scripts.kakao_notifier import send_kakao_notification
-from scripts.naver_infographic_generator import generate_infographic as generate_naver_infographic
 from scripts.naver_publisher import queue_naver_draft
 from scripts.rss_collector import collect_new_videos, load_seen_videos, save_seen_videos
 from scripts.topic_researcher import (
@@ -29,11 +28,13 @@ from scripts.topic_researcher import (
 from scripts.wordpress_publisher import publish_post, resolve_tag_ids
 
 
-def _queue_naver_version(naver_content, topic: str, category_label: str) -> None:
+def _queue_naver_version(naver_content, topic: str, category_label: str, image_bytes: bytes | None) -> None:
     """지니(워드프레스) 발행 뒤에 같은 소스로 서현이 아빠(네이버) 버전을 만들어 로컬
-    발행 대기 큐에 넣는다. 네이버 자체 발행은 여전히 로컬 수동 실행(원칙 유지) —
-    여기서는 콘텐츠와 대표 이미지를 만들어 큐에 쌓아두기만 한다."""
-    naver_image = generate_naver_infographic(naver_content.title, naver_content.body_html)
+    발행 대기 큐에 넣는다. 네이버 자체 발행은 여전히 로컬 수동 실행(원칙 유지).
+    image_bytes는 지니용으로 이미 만든 16:9 인포그래픽을 그대로 재사용한 것 —
+    채널별로 따로 만들면 이미지 생성 비용이 2배가 돼서, 2026-09-10에 지니용 한 장만
+    만들고 네이버에도 재사용하기로 확정함(네이버용 2:1 별도 규격은 이번엔 적용 안 함,
+    에디터가 알아서 리사이징하는 건 감수하기로 함)."""
     queue_naver_draft(
         title=naver_content.title,
         summary_lines=naver_content.summary_lines,
@@ -41,7 +42,7 @@ def _queue_naver_version(naver_content, topic: str, category_label: str) -> None
         body_html=naver_content.body_html,
         topic=topic,
         category_label=category_label,
-        image_bytes=naver_image,
+        image_bytes=image_bytes,
     )
     print(f"  - 네이버용(서현이 아빠) 버전 큐에 저장됨: {naver_content.title}")
 
@@ -57,7 +58,7 @@ def run_video_track(client, model_name):
         for video in new_videos:
             try:
                 content = reprocess_content(video, source, model_name, client)
-                content_html, has_infographic, featured_media_id = assemble_html(content, video)
+                content_html, has_infographic, featured_media_id, infographic_bytes = assemble_html(content, video)
                 tag_ids = resolve_tag_ids(content.tags)
                 result = publish_post(
                     content.title,
@@ -77,7 +78,9 @@ def run_video_track(client, model_name):
 
                 try:
                     naver_content = reprocess_content_naver(video, source, model_name, client)
-                    _queue_naver_version(naver_content, topic=video["title"], category_label=source["name"])
+                    _queue_naver_version(
+                        naver_content, topic=video["title"], category_label=source["name"], image_bytes=infographic_bytes
+                    )
                 except Exception as e:
                     print(f"  - 네이버용 버전 생성 실패(워드프레스 발행은 정상): {type(e).__name__}: {e}")
 
@@ -98,7 +101,7 @@ def _publish_topic_post(category: dict, candidate, client, model_name: str) -> N
     content = reprocess_topic(candidate.topic, category["label"], source_text, model_name, client)
 
     video = {"video_id": content.slug or "topic"}
-    content_html, has_infographic, featured_media_id = assemble_html(content, video)
+    content_html, has_infographic, featured_media_id, infographic_bytes = assemble_html(content, video)
     tag_ids = resolve_tag_ids(content.tags)
     result = publish_post(
         content.title,
@@ -120,7 +123,9 @@ def _publish_topic_post(category: dict, candidate, client, model_name: str) -> N
     try:
         # source_text 재사용 — verify_facts(그라운딩, 유료)를 또 호출하지 않는다.
         naver_content = reprocess_topic_naver(candidate.topic, category["label"], source_text, model_name, client)
-        _queue_naver_version(naver_content, topic=candidate.topic, category_label=category["label"])
+        _queue_naver_version(
+            naver_content, topic=candidate.topic, category_label=category["label"], image_bytes=infographic_bytes
+        )
     except Exception as e:
         print(f"  - 네이버용 버전 생성 실패(워드프레스 발행은 정상): {type(e).__name__}: {e}")
 
