@@ -16,7 +16,7 @@ if ! git pull --rebase origin main; then
 fi
 
 source venv/bin/activate
-python3 scripts/naver_publisher.py
+python3 -m scripts.naver_publisher
 
 git add -u data/naver_queue/
 if ! git diff --cached --quiet; then
