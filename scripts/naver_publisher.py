@@ -371,7 +371,7 @@ def apply_formatting(frame, page, content: dict, image_path: str | None = None) 
     actions.dismiss_tooltip(page)
 
     actions.set_title(frame, page, content["title"])
-    actions.click_body(frame)
+    actions.click_body(frame, page)
     time.sleep(0.3)
 
     styled_body_html = build_styled_body_html(content["body_html"], content.get("table_rows") or [])

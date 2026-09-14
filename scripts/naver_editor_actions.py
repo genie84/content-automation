@@ -68,15 +68,27 @@ def dismiss_tooltip(page) -> None:
         pass
 
 
+def _click_retrying_popup(locator, frame, page) -> None:
+    """팝업이 페이지 로딩 직후가 아니라 클릭하려는 바로 그 타이밍에 뒤늦게 뜨는 경우가
+    실서버에서 확인돼서(2026-09-14), 처음 클릭이 팝업에 가로막히면 그 자리에서 팝업을
+    다시 확인·정리하고 한 번 더 시도한다."""
+    try:
+        locator.click(timeout=5_000)
+    except Exception:
+        dismiss_resume_popup(frame, page)
+        locator.click(timeout=CLICK_TIMEOUT_MS)
+
+
 def set_title(frame, page, title: str) -> None:
     title_el = frame.locator(".se-documentTitle .se-text-paragraph").first
-    title_el.click(timeout=CLICK_TIMEOUT_MS)
+    _click_retrying_popup(title_el, frame, page)
     page.keyboard.type(title)
 
 
-def click_body(frame) -> None:
+def click_body(frame, page) -> None:
     """제목이 아닌 본문 영역(첫 텍스트 컴포넌트)을 클릭해 커서를 둔다."""
-    frame.locator(".se-component.se-text .se-text-paragraph").first.click(timeout=CLICK_TIMEOUT_MS)
+    body_el = frame.locator(".se-component.se-text .se-text-paragraph").first
+    _click_retrying_popup(body_el, frame, page)
 
 
 def insert_image(frame, page, image_path: str) -> None:
