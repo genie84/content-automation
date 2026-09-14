@@ -31,11 +31,16 @@ CLICK_TIMEOUT_MS = 20_000
 
 
 def dismiss_resume_popup(frame, page) -> None:
-    """"작성 중인 글이 있습니다" 이어쓰기 팝업이 뜨면 취소(새 글로 시작)한다."""
-    cancel_btn = frame.locator(".se-popup-button-cancel")
-    if cancel_btn.count() > 0:
-        cancel_btn.first.click(timeout=CLICK_TIMEOUT_MS)
-        time.sleep(0.3)
+    """"작성 중인 글이 있습니다" 이어쓰기 팝업이 뜨면 취소(새 글로 시작)한다. 그 외에도
+    "정말 나가시겠습니까" 류의 일반 alert-confirm 팝업이 남아 있는 경우가 실서버에서
+    확인돼서(2026-09-14), 취소 버튼이 없으면 확인 버튼도 시도해서 어떤 팝업이든 닫는다.
+    팝업의 dim 레이어가 클릭을 가로채는 걸 피하려고 자바스크립트로 직접 클릭한다."""
+    for selector in (".se-popup-button-cancel", ".se-popup-button-confirm"):
+        btn = frame.locator(selector)
+        if btn.count() > 0:
+            btn.first.evaluate("el => el.click()")
+            time.sleep(0.3)
+            return
 
 
 def dismiss_tooltip(page) -> None:
