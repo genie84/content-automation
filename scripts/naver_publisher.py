@@ -385,8 +385,14 @@ def save_as_draft(frame) -> None:
     """"저장"(임시저장) 버튼을 누른다 — "발행" 버튼은 절대 누르지 않는다(최종 발행은
     사람이 직접 확인 후 하는 게 이 프로젝트의 원칙). CSS 모듈 해시 클래스(예:
     save_btn__bzc5B)는 배포마다 바뀔 수 있어서 실제로 하루 만에 셀렉터가 깨진 적이
-    있음 — data-click-area(의미 기반 속성)를 대신 쓴다."""
-    frame.locator('[data-click-area="tpb.save"]').first.click(timeout=actions.CLICK_TIMEOUT_MS)
+    있음 — data-click-area(의미 기반 속성)를 대신 쓴다.
+
+    저장 버튼 위에 "도움말" 툴팁이 마우스를 올릴 때마다 다시 뜨면서 클릭을 계속
+    가로채는 경우가 실서버에서 확인돼서(2026-09-14, Escape로도 안 사라짐) — 일반
+    클릭 대신 자바스크립트로 직접 클릭해 마우스 호버 자체를 발생시키지 않는다."""
+    save_btn = frame.locator('[data-click-area="tpb.save"]').first
+    save_btn.wait_for(state="attached", timeout=actions.CLICK_TIMEOUT_MS)
+    save_btn.evaluate("el => el.click()")
     time.sleep(2)
 
 
