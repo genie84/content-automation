@@ -46,6 +46,24 @@ def send_kakao_notification(title: str, link: str, has_infographic: bool = False
     response.raise_for_status()
 
 
+def send_kakao_alert(text: str, link: str = "https://blog.naver.com/for_the_dads") -> None:
+    """발행 알림과 별개로 쓰는 범용 경고 알림(예: 네이버 서버 자동화 이상 신호 감지).
+    link는 카카오 API 스펙상 필수라 기본값으로 네이버 블로그 홈을 넣어둔다."""
+    access_token = get_access_token()
+    template_object = {
+        "object_type": "text",
+        "text": text,
+        "link": {"web_url": link, "mobile_web_url": link},
+    }
+    response = requests.post(
+        SEND_URL,
+        headers={"Authorization": f"Bearer {access_token}"},
+        data={"template_object": json.dumps(template_object, ensure_ascii=False)},
+        timeout=15,
+    )
+    response.raise_for_status()
+
+
 def main():
     send_kakao_notification("[테스트] 카카오 알림 연동 확인", "https://lampgenie.co.kr/wp-admin/edit.php?post_status=draft")
 

@@ -52,6 +52,21 @@ def click_body(frame) -> None:
     frame.locator(".se-component.se-text .se-text-paragraph").first.click(timeout=5000)
 
 
+def insert_image(frame, page, image_path: str) -> None:
+    """본문 끝(붙여넣기 직후 커서가 있는 위치)에 이미지를 한 장 첨부한다.
+
+    SmartEditor의 "사진" 버튼을 클릭하면 네이티브 파일선택창이 뜨는데, Playwright의
+    파일선택 인터셉트(expect_file_chooser)로 그 창에 로컬 파일 경로를 바로 넘긴다.
+    저장 버튼과 마찬가지로 CSS 모듈 클래스 대신 의미 기반 속성(data-name="image")을
+    쓴다 — 배포마다 바뀔 수 있는 해시 클래스보다 안정적이다."""
+    image_button = frame.locator('button[data-name="image"]').first
+    with page.expect_file_chooser() as fc_info:
+        image_button.click(timeout=5000)
+    fc_info.value.set_files(image_path)
+    frame.locator(".se-component.se-image").last.wait_for(state="visible", timeout=20_000)
+    time.sleep(1.0)
+
+
 def paste_html(frame, page, html_content: str) -> None:
     """스타일이 입혀진 HTML을 실제 OS 클립보드에 쓰고 진짜 Ctrl+V로 붙여넣는다.
 

@@ -1,10 +1,22 @@
-"""네이버 블로그(서현이 아빠) 발행 자동화 — 이 스크립트는 로컬 PC에서만 실행한다
-(GitHub Actions 등 클라우드 러너에서는 실행하지 않음).
+"""네이버 블로그(서현이 아빠) 발행 자동화.
 
-인증 방식: 매 실행마다 로그인을 자동화하지 않는다(네이버의 "새 기기/새 위치 로그인"
-탐지에 걸릴 위험이 커서). 대신 최초 1회 사람이 직접 로그인한 세션을
-`data/naver_storage_state.json`(쿠키 스냅샷, git 추적 제외)에 저장해두고, 이후 실행은
-그 파일을 재사용해 로그인 단계 자체를 건너뛴다.
+인증 방식: 매 실행마다 로그인을 자동화하지 않는다. 대신 최초 1회(또는 세션 만료 시)
+사람이 직접 로그인한 세션을 `data/naver_storage_state.json`(쿠키 스냅샷, git 추적
+제외)에 저장해두고, 이후 실행은 그 파일을 재사용해 로그인 단계 자체를 건너뛴다.
+
+(v6, 2026-09-13): "로컬 PC 전용" 원칙을 폐기하고 Oracle Cloud 상시 서버(24시간 대기)로
+옮김 — 집 PC를 계속 켜둘 수 없어서. 큐 처리(publish_all_pending_drafts_to_naver)는
+headless=True로 이미 동작하므로 서버에서도 그대로 실행 가능하고(v3에서 확인했듯 헤드리스
+자체는 문제가 아니었음), 로그인(login_and_explore, headless=False)만 사람이 화면을
+봐야 해서 서버에 Xvfb+noVNC로 가상 화면을 띄워 원격으로 수행한다(설정 가이드는
+Claude가 별도 아티팩트로 전달함). storage_state는 세션 전용이라 로컬이든 서버든
+주기적으로 만료되니, 만료 시 재로그인 방법은 v2 설명과 동일하게 적용된다. 데이터센터
+IP(오라클)에서 도는 게 "봇처럼" 보일 위험을 줄이려고, 하루 실행 횟수는 cron에서 낮게
+유지하고(2회), 큐 항목 사이에 무작위 대기(ITEM_DELAY_RANGE_SEC)를 넣었으며, 단순 세션
+만료가 아닌 진짜 이상 신호(추가 인증·본인확인 등, _check_security_anomaly)가 보이면
+그 실행을 즉시 중단하고 카카오로 경고를 보낸다. 이 스크립트의 인터페이스는 바뀐 게
+없어서, 문제가 생기면 그냥 예전처럼 로컬 PC에서 `python scripts/naver_publisher.py`를
+실행하는 걸로 언제든 되돌릴 수 있다.
 
 (v2, 2026-09-07): 처음엔 Playwright의 "영구 브라우저 프로필"(user_data_dir 방식)을
 썼는데, 두 가지 문제로 폐기함 —
@@ -38,6 +50,7 @@ git으로 커밋되어 클라우드→로컬로 전달된다(예전 1건짜리 �
 import html
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -47,11 +60,39 @@ from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
 from scripts import naver_editor_actions as actions
+from scripts.kakao_notifier import send_kakao_alert
 
 load_dotenv()
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 STORAGE_STATE_PATH = os.path.join(DATA_DIR, "naver_storage_state.json")
+
+# 데이터센터 IP(Oracle 서버)에서 돌 때 "봇처럼" 보이지 않도록 항목 사이에 사람 같은
+# 대기시간을 둔다(2026-09-13, Oracle 이전 결정 시 사용자 요청). 하루 실행 횟수 자체는
+# cron 스케줄(09:30/19:30 KST, 하루 2회)로 이미 낮게 유지된다.
+ITEM_DELAY_RANGE_SEC = (8, 35)
+
+# 단순 세션 만료(평범한 로그인 폼 리다이렉트)가 아니라, 네이버가 이 접속 자체를 의심하는
+# 신호로 보이는 문구들 — 감지되면 재시도를 멈추고 카카오로 즉시 경고한다.
+SECURITY_ALERT_KEYWORDS = [
+    "비정상적인 접근", "비정상적인 로그인", "추가 인증", "본인확인", "휴대폰 인증",
+    "보안문자", "자동입력 방지", "의심스러운 로그인", "새로운 환경", "captcha",
+    "unusual sign-in", "unusual activity",
+]
+
+
+def _check_security_anomaly(page) -> str | None:
+    """단순 로그인 폼이 아니라 추가 인증/본인확인 등 이상 신호가 보이면 근거 문구를
+    반환한다(없으면 None) — 단순 세션 만료와 구분하기 위함."""
+    try:
+        text = page.inner_text("body")
+    except Exception:
+        return None
+    lowered = text.lower()
+    for kw in SECURITY_ALERT_KEYWORDS:
+        if kw.lower() in lowered:
+            return kw
+    return None
 QUEUE_DIR = os.path.join(DATA_DIR, "naver_queue")
 
 LOGIN_URL = "https://nid.naver.com/nidlogin.login"
@@ -233,21 +274,25 @@ def _strip_tags(html_fragment: str) -> str:
     return TAG_STRIP_PATTERN.sub("", html_fragment).strip()
 
 
-_STRONG_PATTERN = re.compile(r"<strong>(.*?)</strong>", re.S)
+_INLINE_MARKUP_PATTERN = re.compile(r"<strong>(.*?)</strong>|<em>(.*?)</em>", re.S)
 
 
 def _build_paragraph_html(html_fragment: str) -> str:
-    """<strong>단어</strong>만 굵게+블루 인라인 style로 감싸고, 나머지는 이스케이프한
-    일반 텍스트로 둔 <p>를 만든다."""
+    """<strong>단어</strong>는 굵게+블루 인라인 style로, <em>단어</em>는 기울임으로
+    살리고, 나머지는 이스케이프한 일반 텍스트로 둔 <p>를 만든다. (원래 <em>은 처리
+    로직이 없어서 태그가 그대로 텍스트로 노출되던 버그가 있었음 — 2026-09-13 수정)"""
     parts = []
     pos = 0
-    for m in _STRONG_PATTERN.finditer(html_fragment):
+    for m in _INLINE_MARKUP_PATTERN.finditer(html_fragment):
         pre = html_fragment[pos : m.start()]
         if pre:
             parts.append(html.escape(pre))
-        parts.append(
-            f'<strong style="color:{actions.BLUE}; font-weight:bold;">{html.escape(m.group(1))}</strong>'
-        )
+        if m.group(1) is not None:
+            parts.append(
+                f'<strong style="color:{actions.BLUE}; font-weight:bold;">{html.escape(m.group(1))}</strong>'
+            )
+        else:
+            parts.append(f"<em>{html.escape(m.group(2))}</em>")
         pos = m.end()
     rest = html_fragment[pos:]
     if rest:
@@ -318,8 +363,10 @@ def build_styled_body_html(body_html: str, table_rows: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def apply_formatting(frame, page, content: dict) -> None:
-    """대기 중인 초안(content: title/body_html/table_rows)을 에디터에 실제로 입력한다."""
+def apply_formatting(frame, page, content: dict, image_path: str | None = None) -> None:
+    """대기 중인 초안(content: title/body_html/table_rows)을 에디터에 실제로 입력한다.
+    image_path가 있으면 본문(+표) 붙여넣기 직후, 커서가 있는 문서 맨 끝에 이미지를
+    한 장 첨부한다(지니용으로 만든 인포그래픽을 재사용한 것 — html_assembler 참고)."""
     actions.dismiss_resume_popup(frame, page)
     actions.dismiss_tooltip(page)
 
@@ -329,6 +376,9 @@ def apply_formatting(frame, page, content: dict) -> None:
 
     styled_body_html = build_styled_body_html(content["body_html"], content.get("table_rows") or [])
     actions.paste_html(frame, page, styled_body_html)
+
+    if image_path:
+        actions.insert_image(frame, page, image_path)
 
 
 def save_as_draft(frame) -> None:
@@ -385,12 +435,15 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
         context.grant_permissions(["clipboard-read", "clipboard-write"])
         page = context.new_page()
 
-        for item_id in item_ids:
+        for i, item_id in enumerate(item_ids):
             content = load_queued_draft(item_id)
-            print(f"  - 처리 중: {content['title']}")
+            image_path = os.path.join(QUEUE_DIR, f"{item_id}.png")
+            if not os.path.exists(image_path):
+                image_path = None
+            print(f"  - 처리 중: {content['title']}" + (" (이미지 포함)" if image_path else ""))
             try:
                 frame = _goto_write_page(page, blog_id)
-                apply_formatting(frame, page, content)
+                apply_formatting(frame, page, content, image_path=image_path)
                 save_as_draft(frame)
                 remove_queued_draft(item_id)
                 success += 1
@@ -403,6 +456,28 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
                     page.screenshot(path=os.path.join(DATA_DIR, f"naver_queue_error_{item_id}.png"))
                 except Exception:
                     pass
+
+                anomaly = _check_security_anomaly(page)
+                if anomaly:
+                    print(f"    ⚠ 보안 이상 신호 감지('{anomaly}') — 카카오로 즉시 알리고 이번 실행은 중단합니다.")
+                    try:
+                        send_kakao_alert(
+                            "⚠️ 네이버 발행 자동화 이상 신호 감지\n"
+                            f"감지 문구: '{anomaly}'\n"
+                            "단순 세션 만료가 아니라 네이버가 이 접속(서버 IP)을 의심하고 있을 수 있습니다.\n"
+                            "서버 자동화(cron)를 잠시 멈추고, 로컬 PC에서 직접 로그인 상태와 계정 상태를 확인해주세요.\n"
+                            "필요하면 언제든 로컬에서 `python scripts/naver_publisher.py`로 동일하게 처리할 수 있습니다."
+                        )
+                    except Exception as ke:
+                        print(f"    카카오 알림 전송 실패: {type(ke).__name__}: {ke}")
+                    break
+
+            # 데이터센터 IP에서 항목을 기계적으로 연속 처리하는 패턴을 피하려고
+            # 사람처럼 무작위 대기를 둔다(마지막 항목 뒤에는 대기 불필요).
+            if i < len(item_ids) - 1:
+                delay = random.uniform(*ITEM_DELAY_RANGE_SEC)
+                print(f"    다음 항목까지 {delay:.1f}초 대기...")
+                time.sleep(delay)
 
         context.storage_state(path=STORAGE_STATE_PATH)
         context.close()
