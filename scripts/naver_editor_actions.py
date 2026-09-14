@@ -33,14 +33,31 @@ CLICK_TIMEOUT_MS = 20_000
 def dismiss_resume_popup(frame, page) -> None:
     """"작성 중인 글이 있습니다" 이어쓰기 팝업이 뜨면 취소(새 글로 시작)한다. 그 외에도
     "정말 나가시겠습니까" 류의 일반 alert-confirm 팝업이 남아 있는 경우가 실서버에서
-    확인돼서(2026-09-14), 취소 버튼이 없으면 확인 버튼도 시도해서 어떤 팝업이든 닫는다.
-    팝업의 dim 레이어가 클릭을 가로채는 걸 피하려고 자바스크립트로 직접 클릭한다."""
-    for selector in (".se-popup-button-cancel", ".se-popup-button-confirm"):
-        btn = frame.locator(selector)
-        if btn.count() > 0:
-            btn.first.evaluate("el => el.click()")
+    확인됐는데(2026-09-14), 정확한 버튼 클래스 이름을 모르니(".se-popup-button-confirm"
+    으로 시도했지만 안 맞음) 팝업 컨테이너 안의 버튼을 전부 찾아 첫 번째를 누르는
+    방식으로 바꿨다 — 클래스 이름에 의존하지 않아 더 안정적이다. 그래도 못 찾으면
+    진단용으로 팝업 HTML을 파일에 남긴다."""
+    cancel_btn = frame.locator(".se-popup-button-cancel")
+    if cancel_btn.count() > 0:
+        cancel_btn.first.evaluate("el => el.click()")
+        time.sleep(0.3)
+        return
+
+    popup = frame.locator('[data-group="popupLayer"]')
+    if popup.count() > 0:
+        any_btn = popup.locator("button")
+        if any_btn.count() > 0:
+            any_btn.first.evaluate("el => el.click()")
             time.sleep(0.3)
             return
+        try:
+            html = popup.first.evaluate("el => el.outerHTML")
+            with open("/tmp/naver_popup_debug.html", "w", encoding="utf-8") as f:
+                f.write(html)
+        except Exception:
+            pass
+        page.keyboard.press("Escape")
+        time.sleep(0.3)
 
 
 def dismiss_tooltip(page) -> None:
