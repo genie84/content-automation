@@ -24,12 +24,17 @@ WHITE = "#ffffff"
 
 PASTE_SETTLE_SEC = 1.5
 
+# 오라클 무료 서버(1코어 E2.1.Micro)처럼 느린 환경에서는 스마트에디터의 무거운
+# 자바스크립트가 5초 안에 다 안 뜨는 경우가 실제로 있었다(2026-09-14, 실서버 테스트로
+# 확인) — 로컬 개발 PC 기준값(5000ms)보다 넉넉하게 잡는다.
+CLICK_TIMEOUT_MS = 20_000
+
 
 def dismiss_resume_popup(frame, page) -> None:
     """"작성 중인 글이 있습니다" 이어쓰기 팝업이 뜨면 취소(새 글로 시작)한다."""
     cancel_btn = frame.locator(".se-popup-button-cancel")
     if cancel_btn.count() > 0:
-        cancel_btn.first.click(timeout=5000)
+        cancel_btn.first.click(timeout=CLICK_TIMEOUT_MS)
         time.sleep(0.3)
 
 
@@ -43,13 +48,13 @@ def dismiss_tooltip(page) -> None:
 
 def set_title(frame, page, title: str) -> None:
     title_el = frame.locator(".se-documentTitle .se-text-paragraph").first
-    title_el.click(timeout=5000)
+    title_el.click(timeout=CLICK_TIMEOUT_MS)
     page.keyboard.type(title)
 
 
 def click_body(frame) -> None:
     """제목이 아닌 본문 영역(첫 텍스트 컴포넌트)을 클릭해 커서를 둔다."""
-    frame.locator(".se-component.se-text .se-text-paragraph").first.click(timeout=5000)
+    frame.locator(".se-component.se-text .se-text-paragraph").first.click(timeout=CLICK_TIMEOUT_MS)
 
 
 def insert_image(frame, page, image_path: str) -> None:
@@ -61,7 +66,7 @@ def insert_image(frame, page, image_path: str) -> None:
     쓴다 — 배포마다 바뀔 수 있는 해시 클래스보다 안정적이다."""
     image_button = frame.locator('button[data-name="image"]').first
     with page.expect_file_chooser() as fc_info:
-        image_button.click(timeout=5000)
+        image_button.click(timeout=CLICK_TIMEOUT_MS)
     fc_info.value.set_files(image_path)
     frame.locator(".se-component.se-image").last.wait_for(state="visible", timeout=20_000)
     time.sleep(1.0)

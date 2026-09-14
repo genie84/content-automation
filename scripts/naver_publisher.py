@@ -386,7 +386,7 @@ def save_as_draft(frame) -> None:
     사람이 직접 확인 후 하는 게 이 프로젝트의 원칙). CSS 모듈 해시 클래스(예:
     save_btn__bzc5B)는 배포마다 바뀔 수 있어서 실제로 하루 만에 셀렉터가 깨진 적이
     있음 — data-click-area(의미 기반 속성)를 대신 쓴다."""
-    frame.locator('[data-click-area="tpb.save"]').first.click(timeout=5000)
+    frame.locator('[data-click-area="tpb.save"]').first.click(timeout=actions.CLICK_TIMEOUT_MS)
     time.sleep(2)
 
 
@@ -395,7 +395,9 @@ def _goto_write_page(page, blog_id: str):
     page.wait_for_timeout(2000)
 
     # mainFrame이 아직 안 붙어있을 때가 가끔 있어서(StopIteration 실제 발생함) 재시도.
-    for _ in range(5):
+    # 오라클 무료 서버(1코어)에서는 10초 넘게 걸리는 것도 실측 확인돼서(2026-09-14)
+    # 재시도 횟수를 늘렸다.
+    for _ in range(15):
         frame = next((f for f in page.frames if f.name == "mainFrame"), None)
         if frame is not None:
             return frame
