@@ -97,6 +97,10 @@ QUEUE_DIR = os.path.join(DATA_DIR, "naver_queue")
 
 LOGIN_URL = "https://nid.naver.com/nidlogin.login"
 
+# 오라클 무료 서버(1코어)에서는 로그인 페이지 하나 불러오는 데도 30초가 부족해서
+# 타임아웃 나는 게 실측 확인됨(2026-09-15) — 넉넉하게 잡는다.
+PAGE_GOTO_TIMEOUT_MS = 90_000
+
 LOGIN_WAIT_TIMEOUT_SEC = 300  # 사람이 직접 로그인할 시간(5분)
 LOGIN_POLL_INTERVAL_SEC = 2
 # 로그인 후 화면을 확인할 수 있도록 창을 바로 닫지 않고 이만큼 더 유지한다.
@@ -181,7 +185,7 @@ def login_and_explore(blog_id: str | None = None):
         context = browser.new_context(storage_state=storage_state, viewport={"width": 1280, "height": 900})
         page = context.new_page()
 
-        page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30_000)
+        page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
         time.sleep(1)
 
         if _on_login_form(page):
@@ -211,7 +215,7 @@ def login_and_explore(blog_id: str | None = None):
 
         if blog_id:
             write_url = f"https://blog.naver.com/{blog_id}?Redirect=Write"
-            page.goto(write_url, wait_until="domcontentloaded", timeout=30_000)
+            page.goto(write_url, wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
             time.sleep(2)
         else:
             print("NAVER_BLOG_ID가 없어서 블로그 글쓰기 화면 대신 로그인 상태만 확인합니다.")
@@ -397,7 +401,7 @@ def save_as_draft(frame) -> None:
 
 
 def _goto_write_page(page, blog_id: str):
-    page.goto(f"https://blog.naver.com/{blog_id}?Redirect=Write", wait_until="domcontentloaded", timeout=30_000)
+    page.goto(f"https://blog.naver.com/{blog_id}?Redirect=Write", wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
     page.wait_for_timeout(2000)
 
     # mainFrame이 아직 안 붙어있을 때가 가끔 있어서(StopIteration 실제 발생함) 재시도.
