@@ -5,18 +5,24 @@
 제외)에 저장해두고, 이후 실행은 그 파일을 재사용해 로그인 단계 자체를 건너뛴다.
 
 (v6, 2026-09-13): "로컬 PC 전용" 원칙을 폐기하고 Oracle Cloud 상시 서버(24시간 대기)로
-옮김 — 집 PC를 계속 켜둘 수 없어서. 큐 처리(publish_all_pending_drafts_to_naver)는
-headless=True로 이미 동작하므로 서버에서도 그대로 실행 가능하고(v3에서 확인했듯 헤드리스
-자체는 문제가 아니었음), 로그인(login_and_explore, headless=False)만 사람이 화면을
-봐야 해서 서버에 Xvfb+noVNC로 가상 화면을 띄워 원격으로 수행한다(설정 가이드는
-Claude가 별도 아티팩트로 전달함). storage_state는 세션 전용이라 로컬이든 서버든
+옮김 — 집 PC를 계속 켜둘 수 없어서. storage_state는 세션 전용이라 로컬이든 서버든
 주기적으로 만료되니, 만료 시 재로그인 방법은 v2 설명과 동일하게 적용된다. 데이터센터
 IP(오라클)에서 도는 게 "봇처럼" 보일 위험을 줄이려고, 하루 실행 횟수는 cron에서 낮게
 유지하고(2회), 큐 항목 사이에 무작위 대기(ITEM_DELAY_RANGE_SEC)를 넣었으며, 단순 세션
 만료가 아닌 진짜 이상 신호(추가 인증·본인확인 등, _check_security_anomaly)가 보이면
 그 실행을 즉시 중단하고 카카오로 경고를 보낸다. 이 스크립트의 인터페이스는 바뀐 게
-없어서, 문제가 생기면 그냥 예전처럼 로컬 PC에서 `python scripts/naver_publisher.py`를
+없어서, 문제가 생기면 그냥 예전처럼 로컬 PC에서 `python -m scripts.naver_publisher`를
 실행하는 걸로 언제든 되돌릴 수 있다.
+
+(v7, 2026-09-15): v3의 "유효한 storage_state면 헤드리스로도 정상 동작함" 결론은 틀렸던
+것으로 정정한다 — 실서버(오라클)에서 로컬에서 갓 로그인한 유효한 세션을 그대로 복사해
+써도 headless=True(경량 chrome-headless-shell 사용)로는 계속 mainFrame을 못 찾았는데,
+로컬의 headless=False(진짜 크로미움)로는 똑같은 세션이 정상 작동했다 — 네이버가
+chrome-headless-shell을 봇으로 판별하는 것으로 보인다. 그래서 큐 처리도
+headless=False + args=["--headless=new"] 조합(진짜 크로미움 바이너리를 새 헤드리스
+모드로 실행, 디스플레이 서버 불필요)으로 바꿨다. 겸사겸사 로그인 세션이 만들어진
+로케일/시간대(ko-KR, Asia/Seoul)와 실행 환경의 로케일이 다르면 핑거프린트 불일치로
+의심받을 수 있어 두 컨텍스트 모두에 명시적으로 지정해뒀다.
 
 (v2, 2026-09-07): 처음엔 Playwright의 "영구 브라우저 프로필"(user_data_dir 방식)을
 썼는데, 두 가지 문제로 폐기함 —
@@ -182,7 +188,12 @@ def login_and_explore(blog_id: str | None = None):
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
-        context = browser.new_context(storage_state=storage_state, viewport={"width": 1280, "height": 900})
+        context = browser.new_context(
+            storage_state=storage_state,
+            viewport={"width": 1280, "height": 900},
+            locale="ko-KR",
+            timezone_id="Asia/Seoul",
+        )
         page = context.new_page()
 
         page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
@@ -441,8 +452,18 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
     failed = 0
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(storage_state=storage_state, viewport={"width": 1280, "height": 900})
+        # headless=True는 기본적으로 경량 "chrome-headless-shell" 바이너리를 쓰는데,
+        # 이건 실제 브라우저와 차이가 있어 네이버 쪽에서 봇으로 판별했을 가능성이 있음
+        # (2026-09-15, 로컬 로그인+세션 복사로도 계속 mainFrame을 못 찾아서 확인).
+        # headless=False + --headless=new 조합으로 "진짜 크로미움 바이너리"를 새
+        # 헤드리스 모드로 띄운다 — 디스플레이 서버 없이도 동작한다.
+        browser = p.chromium.launch(headless=False, args=["--headless=new"])
+        context = browser.new_context(
+            storage_state=storage_state,
+            viewport={"width": 1280, "height": 900},
+            locale="ko-KR",
+            timezone_id="Asia/Seoul",
+        )
         # 클립보드 붙여넣기 방식(actions.paste_html)에 필요 — 없으면
         # navigator.clipboard.write()가 권한 오류를 던진다.
         context.grant_permissions(["clipboard-read", "clipboard-write"])
