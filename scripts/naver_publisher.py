@@ -289,13 +289,17 @@ def _strip_tags(html_fragment: str) -> str:
     return TAG_STRIP_PATTERN.sub("", html_fragment).strip()
 
 
-_INLINE_MARKUP_PATTERN = re.compile(r"<strong>(.*?)</strong>|<em>(.*?)</em>", re.S)
+_INLINE_MARKUP_PATTERN = re.compile(
+    r'<strong>(.*?)</strong>|<em>(.*?)</em>|<a href="([^"]*)">(.*?)</a>', re.S
+)
 
 
 def _build_paragraph_html(html_fragment: str) -> str:
-    """<strong>단어</strong>는 굵게+블루 인라인 style로, <em>단어</em>는 기울임으로
-    살리고, 나머지는 이스케이프한 일반 텍스트로 둔 <p>를 만든다. (원래 <em>은 처리
-    로직이 없어서 태그가 그대로 텍스트로 노출되던 버그가 있었음 — 2026-09-13 수정)"""
+    """<strong>단어</strong>는 굵게+블루 인라인 style로, <em>단어</em>는 기울임으로,
+    <a href="...">글자</a>는 밑줄+블루 실제 링크로 살리고, 나머지는 이스케이프한 일반
+    텍스트로 둔 <p>를 만든다. (원래 <em>은 처리 로직이 없어서 태그가 그대로 텍스트로
+    노출되던 버그가 있었음 — 2026-09-13 수정. <a>는 콘텐츠 A/B 모음글에 링크를 넣으면서
+    같은 문제가 또 생겨서 2026-09-15에 같이 수정.)"""
     parts = []
     pos = 0
     for m in _INLINE_MARKUP_PATTERN.finditer(html_fragment):
@@ -306,8 +310,14 @@ def _build_paragraph_html(html_fragment: str) -> str:
             parts.append(
                 f'<strong style="color:{actions.BLUE}; font-weight:bold;">{html.escape(m.group(1))}</strong>'
             )
-        else:
+        elif m.group(2) is not None:
             parts.append(f"<em>{html.escape(m.group(2))}</em>")
+        else:
+            href = html.escape(m.group(3), quote=True)
+            parts.append(
+                f'<a href="{href}" style="color:{actions.BLUE}; text-decoration:underline;">'
+                f"{html.escape(m.group(4))}</a>"
+            )
         pos = m.end()
     rest = html_fragment[pos:]
     if rest:
