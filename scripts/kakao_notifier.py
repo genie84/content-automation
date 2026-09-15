@@ -28,9 +28,9 @@ def get_access_token() -> str:
 
 def send_kakao_notification(title: str, link: str, has_infographic: bool = False) -> None:
     access_token = get_access_token()
-    text = f"새 draft 발행됨\n{title}"
+    text = f"새 글 발행됨(자동 공개)\n{title}"
     if has_infographic:
-        text += "\n\n⚠️ 인포그래픽 검수 필요 — 발행 전 이미지 속 숫자·문구를 원본과 대조 확인하세요."
+        text += "\n\n⚠️ 인포그래픽 검수 필요 — 이미 공개된 상태이니 이미지 속 숫자·문구를 원본과 최대한 빨리 대조 확인하세요."
     template_object = {
         "object_type": "text",
         "text": text,

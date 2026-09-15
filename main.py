@@ -63,13 +63,13 @@ def run_video_track(client, model_name):
                 result = publish_post(
                     content.title,
                     content_html,
-                    status="draft",
+                    status="publish",
                     excerpt=content.meta_description,
                     slug=content.slug,
                     tags=tag_ids,
                     featured_media=featured_media_id,
                 )
-                print(f"  - 발행됨(draft): {content.title} → {result['link']}")
+                print(f"  - 발행됨(자동공개): {content.title} → {result['link']}")
 
                 try:
                     send_kakao_notification(content.title, result["link"], has_infographic)
@@ -106,14 +106,14 @@ def _publish_topic_post(category: dict, candidate, client, model_name: str) -> N
     result = publish_post(
         content.title,
         content_html,
-        status="draft",
+        status="publish",
         categories=[category["wp_category_id"]],
         excerpt=content.meta_description,
         slug=content.slug,
         tags=tag_ids,
         featured_media=featured_media_id,
     )
-    print(f"  - 발행됨(draft, 주제선정/{category['label']}): {content.title} → {result['link']}")
+    print(f"  - 발행됨(자동공개, 주제선정/{category['label']}): {content.title} → {result['link']}")
 
     try:
         send_kakao_notification(content.title, result["link"], has_infographic)
