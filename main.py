@@ -15,7 +15,6 @@ GitHub Actions 스케줄(09:00 KST)로 실행되며 여기서는 호출하지 �
 import html
 import json
 import os
-import re
 import sys
 from datetime import datetime
 
@@ -30,7 +29,7 @@ from scripts.gemini_reprocessor import (
 )
 from scripts.html_assembler import assemble_html
 from scripts.kakao_notifier import send_kakao_notification
-from scripts.naver_publisher import queue_naver_draft
+from scripts.naver_publisher import queue_naver_digest_draft, queue_naver_draft
 from scripts.rss_collector import collect_new_videos, load_seen_videos, save_seen_videos
 from scripts.topic_researcher import (
     KST,
@@ -45,6 +44,7 @@ from scripts.wordpress_publisher import publish_post, resolve_tag_ids
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 VIDEO_DIGEST_PATH = os.path.join(DATA_DIR, "today_video_posts.json")
+VIDEO_DIGEST_IMAGE_DIR = os.path.join(DATA_DIR, "today_video_posts")
 
 # 모음글 안에서 링크 문구를 매번 똑같이 반복하지 않도록 순환시킨다(광고성으로 안
 # 보이게 하기 위한 요구사항, B안 지시문 "공통 원칙" 참고).
@@ -54,13 +54,15 @@ DIGEST_LINK_PHRASES = [
 ]
 
 
-def _extract_teaser(body_html: str, max_len: int = 140) -> str:
-    """본문 첫 <p> 문단에서 태그를 지운 평문 일부를 모음글용 티저로 뽑는다."""
-    match = re.search(r"<p>(.*?)</p>", body_html, re.S)
-    if not match:
-        return ""
-    text = re.sub(r"<[^>]+>", "", match.group(1)).strip()
-    return text[: max_len].rstrip() + ("…" if len(text) > max_len else "")
+def _digest_segment_html(category_label: str, summary_lines: list[str], link: str, phrase: str) -> str:
+    """모음글 안 항목 하나의 텍스트를 만든다 — 서현이 아빠가 따로 지어낸 티저가 아니라,
+    지니 글 자체의 요약(summary_lines, ReprocessedContent에 이미 있는 필드)을 그대로
+    써서 "지니 글을 요약해서 링크로 안내"한다는 사용자 요구사항을 충족한다."""
+    parts = [f"<h2>{html.escape(category_label)}</h2>"]
+    for line in summary_lines:
+        parts.append(f"<p>{html.escape(line)}</p>")
+    parts.append(f'<p><a href="{link}">{phrase}</a></p>')
+    return "".join(parts)
 
 
 def _queue_naver_version(naver_content, topic: str, category_label: str, image_bytes: bytes | None) -> None:
@@ -82,10 +84,14 @@ def _queue_naver_version(naver_content, topic: str, category_label: str, image_b
     print(f"  - 네이버용(서현이 아빠) 버전 큐에 저장됨: {naver_content.title}")
 
 
-def _record_video_post_for_digest(title: str, link: str, body_html: str) -> None:
-    """콘텐츠 A(삼프로 모음, 19:20 KST 별도 워크플로우)가 나중에 읽어 쓸 수 있도록,
-    오늘 자동공개된 영상 트랙 글의 제목/링크/티저를 날짜와 함께 누적 기록한다.
-    날짜가 바뀌면 어제 이전 항목은 자연히 걸러진다."""
+def _record_video_post_for_digest(
+    video_id: str, title: str, link: str, summary_lines: list[str], infographic_bytes: bytes | None
+) -> None:
+    """콘텐츠 A(삼프로 모음, 19:35 KST 별도 워크플로우)가 나중에 읽어 쓸 수 있도록,
+    오늘 자동공개된 영상 트랙 글의 제목/링크/요약(지니 자신의 summary_lines)을 날짜와
+    함께 누적 기록한다. 인포그래픽 이미지도 그대로 재사용할 수 있게 파일로 같이
+    저장한다(사용자 요구사항 "이미지는 모두 활용"). 날짜가 바뀌면 어제 이전 항목은
+    자연히 걸러진다."""
     today_str = datetime.now(KST).date().isoformat()
     entries = []
     if os.path.exists(VIDEO_DIGEST_PATH):
@@ -95,10 +101,23 @@ def _record_video_post_for_digest(title: str, link: str, body_html: str) -> None
         except Exception:
             entries = []
     entries = [e for e in entries if e.get("date") == today_str]
-    entries.append({"date": today_str, "title": title, "link": link, "teaser": _extract_teaser(body_html)})
+    entries.append(
+        {
+            "date": today_str,
+            "video_id": video_id,
+            "title": title,
+            "link": link,
+            "summary_lines": summary_lines,
+            "has_image": infographic_bytes is not None,
+        }
+    )
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(VIDEO_DIGEST_PATH, "w", encoding="utf-8") as f:
         json.dump(entries, f, ensure_ascii=False, indent=2)
+    if infographic_bytes is not None:
+        os.makedirs(VIDEO_DIGEST_IMAGE_DIR, exist_ok=True)
+        with open(os.path.join(VIDEO_DIGEST_IMAGE_DIR, f"{video_id}.png"), "wb") as f:
+            f.write(infographic_bytes)
 
 
 def run_video_track(client, model_name):
@@ -124,7 +143,9 @@ def run_video_track(client, model_name):
                     featured_media=featured_media_id,
                 )
                 print(f"  - 발행됨(자동공개): {content.title} → {result['link']}")
-                _record_video_post_for_digest(content.title, result["link"], content.body_html)
+                _record_video_post_for_digest(
+                    video["video_id"], content.title, result["link"], content.summary_lines, infographic_bytes
+                )
 
                 try:
                     send_kakao_notification(content.title, result["link"], has_infographic)
@@ -147,12 +168,14 @@ def run_video_track(client, model_name):
                 continue
 
 
-def _publish_topic_post(category: dict, candidate, client, model_name: str) -> dict | None:
+def _publish_topic_post(category: dict, candidate, client, model_name: str) -> dict:
     """리서치된 주제 후보 1개를 사실관계 확인 → 재가공 → 발행까지 처리한다.
     카테고리 4개를 각각 독립적으로 처리하므로, 하나가 실패해도 나머지에 영향 없도록
     호출하는 쪽(run_topic_track)에서 개별적으로 감싼다.
-    반환값은 콘텐츠 B(카테고리 모음) 큐잉에 쓸 {category_label, body_html, link} —
-    네이버용 재가공까지 실패하면 None(그래도 지니 발행/이력 기록은 이미 끝난 상태)."""
+    반환값은 콘텐츠 B(카테고리 모음) 큐잉에 쓸 {category_label, summary_lines,
+    infographic_bytes, link}(지니 자신의 요약/이미지를 그대로 재사용) — 네이버용
+    재가공까지 실패해도 지니 발행/이력 기록은 이미 끝난 상태라 None 대신 그래도
+    반환한다(콘텐츠 B는 서현이 아빠 버전 유무와 무관하게 지니 링크만 있으면 됨)."""
     facts = verify_facts(candidate, category, client, model_name)
     source_text = facts_to_source_text(facts)
     content = reprocess_topic(candidate.topic, category["label"], source_text, model_name, client)
@@ -185,41 +208,46 @@ def _publish_topic_post(category: dict, candidate, client, model_name: str) -> d
         _queue_naver_version(
             naver_content, topic=candidate.topic, category_label=category["label"], image_bytes=infographic_bytes
         )
-        return {"category_label": category["label"], "body_html": naver_content.body_html, "link": result["link"]}
     except Exception as e:
-        print(f"  - 네이버용 버전 생성 실패(워드프레스 발행은 정상, 콘텐츠 B 모음에서 이 카테고리는 빠짐): {type(e).__name__}: {e}")
-        return None
+        print(f"  - 네이버용(개별) 버전 생성 실패(워드프레스 발행은 정상): {type(e).__name__}: {e}")
+
+    # 콘텐츠 B는 서현이 아빠 개별 버전과 무관하게 지니 자신의 요약/이미지만 있으면
+    # 되므로, 위 네이버용 재가공 성공 여부와 상관없이 항상 반환한다.
+    return {
+        "category_label": category["label"],
+        "summary_lines": content.summary_lines,
+        "infographic_bytes": infographic_bytes,
+        "link": result["link"],
+    }
 
 
 def _queue_digest_b(entries: list[dict]) -> None:
-    """콘텐츠 B(카테고리별 데일리 이슈 모음) — 카테고리마다 이미 만들어둔 서현이 아빠
-    버전 본문의 첫 문단을 티저로 뽑아, 지니(워드프레스) 글 링크와 함께 모음글 하나로
-    큐에 넣는다. 이미 생성된 콘텐츠를 재활용하는 것이라 추가 Gemini 호출은 없다."""
+    """콘텐츠 B(카테고리별 데일리 이슈 모음) — 카테고리마다 이미 만든 지니 글의 요약
+    (summary_lines)과 인포그래픽 이미지를 그대로 재활용해서, 링크와 함께 모음글 하나로
+    큐에 넣는다. 이미 생성된 콘텐츠를 재활용하는 것이라 추가 Gemini 호출은 없다.
+    항목마다 이미지가 따로 붙으므로 queue_naver_digest_draft(segments 방식)를 쓴다."""
     today_label = datetime.now(KST).strftime("%m월 %d일")
-    parts = [
-        f"<p>안녕하세요, 서현이 아빠입니다 🙌 오늘({today_label}) 분야별로 눈여겨볼 만한 "
-        "경제 이슈들을 한데 모아봤어요.</p>"
-    ]
+    intro = (
+        f"<p>안녕하세요, 서현이 아빠입니다 🙌 오늘({today_label}) 지니가 정리한 "
+        "분야별 경제 이슈들을 모아봤어요.</p>"
+    )
+    segments = [{"html": intro, "image_bytes": None}]
     for i, entry in enumerate(entries):
-        teaser = _extract_teaser(entry["body_html"])
         phrase = DIGEST_LINK_PHRASES[i % len(DIGEST_LINK_PHRASES)]
-        parts.append(f"<h2>{html.escape(entry['category_label'])}</h2>")
-        if teaser:
-            parts.append(f"<p>{html.escape(teaser)}</p>")
-        parts.append(f'<p><a href="{entry["link"]}">{phrase}</a></p>')
-    parts.append("<p>오늘도 읽어주셔서 감사합니다 😊.</p>")
+        seg_html = _digest_segment_html(entry["category_label"], entry["summary_lines"], entry["link"], phrase)
+        segments.append({"html": seg_html, "image_bytes": entry.get("infographic_bytes")})
+    segments.append({"html": "<p>오늘도 읽어주셔서 감사합니다 😊.</p>", "image_bytes": None})
 
     title = f"{today_label} 경제 이슈 브리핑 모음"
-    queue_naver_draft(
+    queue_naver_digest_draft(
         title=title,
         summary_lines=[e["category_label"] for e in entries],
-        table_rows=[],
-        body_html="\n".join(parts),
+        segments=segments,
         topic="카테고리 모음(콘텐츠 B)",
         category_label="모음",
-        image_bytes=None,
     )
-    print(f"  - 콘텐츠 B(카테고리 모음) 큐에 저장됨: {title} ({len(entries)}개 항목)")
+    image_count = sum(1 for e in entries if e.get("infographic_bytes"))
+    print(f"  - 콘텐츠 B(카테고리 모음) 큐에 저장됨: {title} ({len(entries)}개 항목, 이미지 {image_count}장)")
 
 
 def run_topic_track(client, model_name):
@@ -260,8 +288,9 @@ def run_topic_track(client, model_name):
 
 def run_sampro_digest() -> None:
     """콘텐츠 A(삼프로TV 콘텐츠 모음) — 그날 자동공개된 영상 트랙 글들
-    (data/today_video_posts.json)을 모아 서현이 아빠 모음글 하나로 큐에 넣는다.
-    새 GitHub Actions 스케줄(19:20 KST, 마지막 영상 트랙 실행 이후)에서
+    (data/today_video_posts.json + data/today_video_posts/*.png)을 모아 서현이 아빠
+    모음글 하나로 큐에 넣는다. 지니 글 자신의 요약/이미지를 그대로 재활용한다.
+    새 GitHub Actions 스케줄(19:35 KST, 마지막 영상 트랙 실행 이후)에서
     `python main.py --sampro-digest`로 호출된다."""
     today_str = datetime.now(KST).date().isoformat()
     entries = []
@@ -277,33 +306,39 @@ def run_sampro_digest() -> None:
         return
 
     today_label = datetime.now(KST).strftime("%m월 %d일")
-    parts = [
+    intro = (
         f"<p>안녕하세요, 서현이 아빠입니다 🙌 오늘({today_label}) 삼프로TV 관련해서 "
         "지니가 정리한 글들을 모아봤어요.</p>"
-    ]
+    )
+    segments = [{"html": intro, "image_bytes": None}]
     for i, entry in enumerate(entries):
         phrase = DIGEST_LINK_PHRASES[i % len(DIGEST_LINK_PHRASES)]
-        parts.append(f"<h2>{html.escape(entry['title'])}</h2>")
-        if entry.get("teaser"):
-            parts.append(f"<p>{html.escape(entry['teaser'])}</p>")
-        parts.append(f'<p><a href="{entry["link"]}">{phrase}</a></p>')
-    parts.append("<p>오늘도 읽어주셔서 감사합니다 😊.</p>")
+        seg_html = _digest_segment_html(entry["title"], entry.get("summary_lines") or [], entry["link"], phrase)
+        image_bytes = None
+        if entry.get("has_image"):
+            image_path = os.path.join(VIDEO_DIGEST_IMAGE_DIR, f"{entry['video_id']}.png")
+            if os.path.exists(image_path):
+                with open(image_path, "rb") as f:
+                    image_bytes = f.read()
+        segments.append({"html": seg_html, "image_bytes": image_bytes})
+    segments.append({"html": "<p>오늘도 읽어주셔서 감사합니다 😊.</p>", "image_bytes": None})
 
     title = f"{today_label} 삼프로TV 경제 콘텐츠 모음"
-    queue_naver_draft(
+    queue_naver_digest_draft(
         title=title,
         summary_lines=[e["title"] for e in entries],
-        table_rows=[],
-        body_html="\n".join(parts),
+        segments=segments,
         topic="삼프로TV 모음(콘텐츠 A)",
         category_label="모음",
-        image_bytes=None,
     )
-    print(f"  - 콘텐츠 A(삼프로 모음) 큐에 저장됨: {title} ({len(entries)}건)")
+    image_count = sum(1 for e in entries if e.get("has_image"))
+    print(f"  - 콘텐츠 A(삼프로 모음) 큐에 저장됨: {title} ({len(entries)}건, 이미지 {image_count}장)")
 
     # 다음날 중복 누적 방지 — 오늘 치는 소진 처리(내일부터 새로 쌓임).
     with open(VIDEO_DIGEST_PATH, "w", encoding="utf-8") as f:
         json.dump([], f)
+    for fname in os.listdir(VIDEO_DIGEST_IMAGE_DIR) if os.path.isdir(VIDEO_DIGEST_IMAGE_DIR) else []:
+        os.remove(os.path.join(VIDEO_DIGEST_IMAGE_DIR, fname))
 
 
 def run():

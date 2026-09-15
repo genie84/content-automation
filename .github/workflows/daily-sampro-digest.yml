@@ -36,4 +36,4 @@ jobs:
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: 삼프로 모음(콘텐츠 A) 큐잉 (서버 자동실행)"
-          file_pattern: "data/today_video_posts.json data/naver_queue/"
+          file_pattern: "data/today_video_posts.json data/today_video_posts/ data/naver_queue/"

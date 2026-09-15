@@ -150,6 +150,41 @@ def queue_naver_draft(
     return item_id
 
 
+def queue_naver_digest_draft(
+    title: str,
+    summary_lines: list[str],
+    segments: list[dict],
+    topic: str,
+    category_label: str,
+) -> str:
+    """콘텐츠 A/B(모음글) 전용 — 링크 건 항목마다 이미지가 각각 따로 붙는 구조라 body_html
+    하나 + 이미지 하나짜리 queue_naver_draft로는 표현이 안 돼서 별도로 만든다.
+    segments: [{"html": "<h2>...</h2><p>...</p>", "image_bytes": bytes|None}, ...]
+    순서대로 붙여넣기→(있으면) 그 자리에 이미지 삽입을 반복한다(apply_formatting 참고).
+    반환값은 큐 항목 id."""
+    os.makedirs(QUEUE_DIR, exist_ok=True)
+    item_id = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
+    seg_payload = []
+    for i, seg in enumerate(segments):
+        image_bytes = seg.get("image_bytes")
+        seg_payload.append({"html": seg["html"], "has_image": image_bytes is not None})
+        if image_bytes is not None:
+            with open(os.path.join(QUEUE_DIR, f"{item_id}_seg{i}.png"), "wb") as f:
+                f.write(image_bytes)
+    payload = {
+        "title": title,
+        "summary_lines": summary_lines,
+        "table_rows": [],
+        "segments": seg_payload,
+        "topic": topic,
+        "category_label": category_label,
+        "has_image": False,
+    }
+    with open(os.path.join(QUEUE_DIR, f"{item_id}.json"), "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    return item_id
+
+
 def list_queued_drafts() -> list[str]:
     """대기 중인 큐 항목 id 목록을 생성 순서대로 반환한다(id 앞부분이 타임스탬프라
     자연스럽게 시간순 정렬됨)."""
@@ -168,6 +203,11 @@ def remove_queued_draft(item_id: str) -> None:
         path = os.path.join(QUEUE_DIR, f"{item_id}{ext}")
         if os.path.exists(path):
             os.remove(path)
+    # queue_naver_digest_draft가 만든 세그먼트별 이미지(모음글용)도 같이 정리한다.
+    prefix = f"{item_id}_seg"
+    for fname in os.listdir(QUEUE_DIR):
+        if fname.startswith(prefix) and fname.endswith(".png"):
+            os.remove(os.path.join(QUEUE_DIR, fname))
 
 
 def _on_login_form(page) -> bool:
@@ -393,16 +433,28 @@ def build_styled_body_html(body_html: str, table_rows: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def apply_formatting(frame, page, content: dict, image_path: str | None = None) -> None:
-    """대기 중인 초안(content: title/body_html/table_rows)을 에디터에 실제로 입력한다.
-    image_path가 있으면 본문(+표) 붙여넣기 직후, 커서가 있는 문서 맨 끝에 이미지를
-    한 장 첨부한다(지니용으로 만든 인포그래픽을 재사용한 것 — html_assembler 참고)."""
+def apply_formatting(frame, page, content: dict, image_path: str | None = None, item_id: str | None = None) -> None:
+    """대기 중인 초안을 에디터에 실제로 입력한다. 두 가지 형태를 지원한다:
+    - 일반 글(body_html/table_rows): 본문(+표) 붙여넣기 직후, 문서 맨 끝에 이미지를
+      한 장 첨부(image_path가 있으면) — 지니용으로 만든 인포그래픽 재사용.
+    - 모음글(콘텐츠 A/B, content["segments"]): 항목마다 텍스트 붙여넣기 → 그 항목의
+      이미지 삽입을 순서대로 반복한다(queue_naver_digest_draft 참고)."""
     actions.dismiss_resume_popup(frame, page)
     actions.dismiss_tooltip(page)
 
     actions.set_title(frame, page, content["title"])
     actions.click_body(frame, page)
     time.sleep(0.3)
+
+    if content.get("segments"):
+        for i, seg in enumerate(content["segments"]):
+            styled_html = build_styled_body_html(seg["html"], [])
+            actions.paste_html(frame, page, styled_html)
+            if seg.get("has_image"):
+                seg_image_path = os.path.join(QUEUE_DIR, f"{item_id}_seg{i}.png")
+                if os.path.exists(seg_image_path):
+                    actions.insert_image(frame, page, seg_image_path)
+        return
 
     styled_body_html = build_styled_body_html(content["body_html"], content.get("table_rows") or [])
     actions.paste_html(frame, page, styled_body_html)
@@ -499,7 +551,7 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
             print(f"  - 처리 중: {content['title']}" + (" (이미지 포함)" if image_path else ""))
             try:
                 frame = _goto_write_page(page, blog_id)
-                apply_formatting(frame, page, content, image_path=image_path)
+                apply_formatting(frame, page, content, image_path=image_path, item_id=item_id)
                 save_as_draft(frame)
                 remove_queued_draft(item_id)
                 success += 1

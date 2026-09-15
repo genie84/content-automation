@@ -47,4 +47,4 @@ jobs:
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update pipeline state (seen videos / model cache)"
-          file_pattern: "data/seen_videos.json data/resolved_model.json data/naver_queue/ data/today_video_posts.json"
+          file_pattern: "data/seen_videos.json data/resolved_model.json data/naver_queue/ data/today_video_posts.json data/today_video_posts/"
