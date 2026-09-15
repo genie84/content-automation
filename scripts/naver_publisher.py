@@ -15,14 +15,19 @@ IP(오라클)에서 도는 게 "봇처럼" 보일 위험을 줄이려고, 하루
 실행하는 걸로 언제든 되돌릴 수 있다.
 
 (v7, 2026-09-15): v3의 "유효한 storage_state면 헤드리스로도 정상 동작함" 결론은 틀렸던
-것으로 정정한다 — 실서버(오라클)에서 로컬에서 갓 로그인한 유효한 세션을 그대로 복사해
-써도 headless=True(경량 chrome-headless-shell 사용)로는 계속 mainFrame을 못 찾았는데,
-로컬의 headless=False(진짜 크로미움)로는 똑같은 세션이 정상 작동했다 — 네이버가
-chrome-headless-shell을 봇으로 판별하는 것으로 보인다. 그래서 큐 처리도
-headless=False + args=["--headless=new"] 조합(진짜 크로미움 바이너리를 새 헤드리스
-모드로 실행, 디스플레이 서버 불필요)으로 바꿨다. 겸사겸사 로그인 세션이 만들어진
-로케일/시간대(ko-KR, Asia/Seoul)와 실행 환경의 로케일이 다르면 핑거프린트 불일치로
-의심받을 수 있어 두 컨텍스트 모두에 명시적으로 지정해뒀다.
+것으로 정정한다. 실서버(오라클)에서 하루 종일 디버깅한 결과:
+1. 로컬에서 갓 로그인한 유효한 세션을 그대로 서버로 복사해 써도, headless=True(경량
+   chrome-headless-shell)와 headless=False+args=["--headless=new"](진짜 크로미움의
+   새 헤드리스 모드) 둘 다 계속 mainFrame을 못 찾음(로그인 화면으로 튕김).
+2. 반면 같은 세션을 서버에 Xvfb(가상 디스플레이)를 띄우고 완전한 headless=False로
+   실행하니 로그인 확인부터 정상 작동함.
+→ 결론: 세션/계정 설정(IP 보안, 해외 로그인 차단 등) 문제가 아니라, **"헤드리스"라는
+자체를 네이버가 감지**하는 것으로 보인다(shell이든 new 모드든 상관없이). 그래서
+큐 처리(publish_all_pending_drafts_to_naver)도 login_and_explore와 마찬가지로
+headless=False로 통일하고, naver_server_runner.sh가 실행 전에 Xvfb를 미리 띄워둔다
+(사람이 화면을 볼 필요는 없고 "진짜 디스플레이가 있는 상태"만 만들어주면 됨). 겸사겸사
+로그인 세션이 만들어진 로케일/시간대(ko-KR, Asia/Seoul)와 실행 환경의 로케일이 다르면
+핑거프린트 불일치로 의심받을 수 있어 두 컨텍스트 모두에 명시적으로 지정해뒀다.
 
 (v2, 2026-09-07): 처음엔 Playwright의 "영구 브라우저 프로필"(user_data_dir 방식)을
 썼는데, 두 가지 문제로 폐기함 —
@@ -462,12 +467,19 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
     failed = 0
 
     with sync_playwright() as p:
-        # headless=True는 기본적으로 경량 "chrome-headless-shell" 바이너리를 쓰는데,
-        # 이건 실제 브라우저와 차이가 있어 네이버 쪽에서 봇으로 판별했을 가능성이 있음
-        # (2026-09-15, 로컬 로그인+세션 복사로도 계속 mainFrame을 못 찾아서 확인).
-        # headless=False + --headless=new 조합으로 "진짜 크로미움 바이너리"를 새
-        # 헤드리스 모드로 띄운다 — 디스플레이 서버 없이도 동작한다.
-        browser = p.chromium.launch(headless=False, args=["--headless=new"])
+        # (2026-09-15) headless=True(경량 shell), headless=False+--headless=new(진짜
+        # 크로미움의 새 헤드리스 모드) 둘 다 시도했지만 유효한 세션으로도 계속
+        # mainFrame을 못 찾았는데, 서버에 Xvfb(가상 디스플레이)를 띄우고 완전한
+        # headless=False(진짜 화면 있는 모드)로 실행하니 로그인 확인부터 정상 작동함 —
+        # "헤드리스 자체"(shell이든 new든)를 네이버가 감지하는 것으로 결론. 그래서 평소
+        # 자동실행도 Xvfb + headless=False로 돌린다(naver_server_runner.sh가 Xvfb를
+        # 미리 띄워둠 — 화면을 사람이 볼 필요는 없고 그냥 "진짜 디스플레이가 있는
+        # 상태"만 만들어주면 된다. DISPLAY 환경변수가 없으면 예전처럼 명확한 에러를
+        #내도록 launch 전에 확인한다).
+        if not os.environ.get("DISPLAY"):
+            print("경고: DISPLAY 환경변수가 없습니다 — Xvfb를 먼저 띄워야 합니다"
+                  "(naver_server_runner.sh를 거치지 않고 직접 실행하신 경우 이 문제가 날 수 있습니다).")
+        browser = p.chromium.launch(headless=False)
         context = browser.new_context(
             storage_state=storage_state,
             viewport={"width": 1280, "height": 900},

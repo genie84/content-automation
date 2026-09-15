@@ -15,6 +15,17 @@ if ! git pull --rebase origin main; then
     exit 1
 fi
 
+# 네이버가 완전 헤드리스 실행을 감지하는 것으로 보여서(2026-09-15, 실서버 디버깅으로
+# 확인), 화면은 안 보여도 "진짜 디스플레이가 있는 상태"를 만들어주는 Xvfb를 먼저
+# 띄운다. 이미 떠 있으면(이전 실행이 남겨둔 것) 그대로 재사용 — 매번 새로 안 띄운다.
+export DISPLAY=:99
+if ! pgrep -f "Xvfb :99" > /dev/null; then
+    echo "$LOG_PREFIX Xvfb 가상 디스플레이 시작"
+    nohup Xvfb :99 -screen 0 1280x900x24 > /tmp/xvfb.log 2>&1 &
+    disown
+    sleep 2
+fi
+
 source venv/bin/activate
 python3 -m scripts.naver_publisher
 
