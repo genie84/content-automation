@@ -164,7 +164,7 @@ def _on_login_form(page) -> bool:
     판단하면 오탐이 있었음 — blog.naver.com 루트는 비로그인 상태에서도 nid.naver.com으로
     리다이렉트되지 않아서 "이미 로그인됨"으로 잘못 판단한 적이 있음)."""
     try:
-        return page.locator("#id").is_visible(timeout=3000)
+        return page.locator("#id").is_visible(timeout=10_000)
     except Exception:
         return False
 
@@ -397,17 +397,18 @@ def save_as_draft(frame) -> None:
     save_btn = frame.locator('[data-click-area="tpb.save"]').first
     save_btn.wait_for(state="attached", timeout=actions.CLICK_TIMEOUT_MS)
     save_btn.evaluate("el => el.click()")
-    time.sleep(2)
+    time.sleep(3)
 
 
 def _goto_write_page(page, blog_id: str):
     page.goto(f"https://blog.naver.com/{blog_id}?Redirect=Write", wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(5000)
 
     # mainFrame이 아직 안 붙어있을 때가 가끔 있어서(StopIteration 실제 발생함) 재시도.
-    # 오라클 무료 서버(1코어)에서는 10초 넘게 걸리는 것도 실측 확인돼서(2026-09-14)
-    # 재시도 횟수를 늘렸다.
-    for _ in range(15):
+    # domcontentloaded는 빨리 끝나도, 스마트에디터의 무거운 자바스크립트가 iframe을
+    # 실제로 붙이기까지는 오라클 1코어 서버에서 훨씬 오래 걸리는 게 실측 확인됨
+    # (2026-09-15, 15초로도 부족해서 60초로 늘림).
+    for _ in range(60):
         frame = next((f for f in page.frames if f.name == "mainFrame"), None)
         if frame is not None:
             return frame

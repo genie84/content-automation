@@ -22,12 +22,11 @@ NAVY = "#132A46"
 BLUE = "#3B82D9"
 WHITE = "#ffffff"
 
-PASTE_SETTLE_SEC = 1.5
+PASTE_SETTLE_SEC = 3.0
 
 # 오라클 무료 서버(1코어 E2.1.Micro)처럼 느린 환경에서는 스마트에디터의 무거운
-# 자바스크립트가 5초 안에 다 안 뜨는 경우가 실제로 있었다(2026-09-14, 실서버 테스트로
-# 확인) — 로컬 개발 PC 기준값(5000ms)보다 넉넉하게 잡는다.
-CLICK_TIMEOUT_MS = 20_000
+# 자바스크립트가 20초로도 부족한 경우가 실측 확인됨(2026-09-15) — 더 넉넉하게 잡는다.
+CLICK_TIMEOUT_MS = 45_000
 
 
 def dismiss_resume_popup(frame, page) -> None:
@@ -102,8 +101,8 @@ def insert_image(frame, page, image_path: str) -> None:
     with page.expect_file_chooser() as fc_info:
         image_button.click(timeout=CLICK_TIMEOUT_MS)
     fc_info.value.set_files(image_path)
-    frame.locator(".se-component.se-image").last.wait_for(state="visible", timeout=20_000)
-    time.sleep(1.0)
+    frame.locator(".se-component.se-image").last.wait_for(state="visible", timeout=CLICK_TIMEOUT_MS)
+    time.sleep(2.0)
 
 
 def paste_html(frame, page, html_content: str) -> None:
