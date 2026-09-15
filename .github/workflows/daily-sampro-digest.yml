@@ -1,0 +1,39 @@
+name: Daily Sampro Digest (Content A)
+
+# 네이버-램프지니 크로스 프로모션(B안) 콘텐츠 A — 그날 자동공개된 삼프로TV 영상 트랙
+# 글들(daily-post.yml이 하루 4번 07:45~19:00 KST에 쌓아둠, data/today_video_posts.json)
+# 을 모아 서현이 아빠 모음글 하나로 네이버 큐에 넣는다. 마지막 영상 트랙(daily-post.yml,
+# 19:00 KST 트리거) 실행이 최대 28분까지 걸릴 수 있어서(그 워크플로우의
+# timeout-minutes) 19:20이 아니라 19:35 KST = 10:35 UTC로 여유를 뒀다 — 너무 붙이면
+# 그날 마지막 영상이 아직 커밋되기 전에 모음글이 만들어져 하나 누락될 수 있음.
+# WP/Gemini/네이버 로그인 어느 것도 호출하지 않고(이미 만들어진 데이터만 재활용) 로컬
+# 파일만 다루므로 Playwright 브라우저 설치나 API 키가 필요 없다.
+on:
+  schedule:
+    - cron: "35 10 * * *"  # 19:35 KST
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - run: python main.py --sampro-digest
+        env:
+          PYTHONUNBUFFERED: "1"
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: 삼프로 모음(콘텐츠 A) 큐잉 (서버 자동실행)"
+          file_pattern: "data/today_video_posts.json data/naver_queue/"
