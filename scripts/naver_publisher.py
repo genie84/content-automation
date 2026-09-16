@@ -454,6 +454,12 @@ def apply_formatting(frame, page, content: dict, image_path: str | None = None, 
                 seg_image_path = os.path.join(QUEUE_DIR, f"{item_id}_seg{i}.png")
                 if os.path.exists(seg_image_path):
                     actions.insert_image(frame, page, seg_image_path)
+            # 붙여넣기 직후 커서가 방금 넣은 마지막 문단 끝에 그대로 남아있어서, 다음
+            # 항목을 바로 붙이면 새 블록으로 안 잡히고 그 문단 끝에 그대로 이어붙는
+            # 문제 확인됨(2026-09-16, h2 소제목이 볼드/큰글씨 없이 앞 문장에 붙어 나옴).
+            # Enter로 빈 문단을 새로 만들어두고 다음 항목을 그 위에 붙인다.
+            page.keyboard.press("Enter")
+            time.sleep(0.3)
         return
 
     styled_body_html = build_styled_body_html(content["body_html"], content.get("table_rows") or [])
