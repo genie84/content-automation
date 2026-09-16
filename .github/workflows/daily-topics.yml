@@ -45,4 +45,4 @@ jobs:
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update topic track state (history / model cache)"
-          file_pattern: "data/topic_history.json data/topic_track_state.json data/resolved_model.json data/naver_queue/"
+          file_pattern: "data/topic_history.json data/topic_track_state.json data/resolved_model.json data/naver_queue/ data/digest_publish_count.json"

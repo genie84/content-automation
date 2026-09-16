@@ -45,6 +45,11 @@ from scripts.wordpress_publisher import publish_post, resolve_tag_ids
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 VIDEO_DIGEST_PATH = os.path.join(DATA_DIR, "today_video_posts.json")
 VIDEO_DIGEST_IMAGE_DIR = os.path.join(DATA_DIR, "today_video_posts")
+DIGEST_COUNTER_PATH = os.path.join(DATA_DIR, "digest_publish_count.json")
+
+# 항목 사이를 시각적으로 구분하는 문단 — BLOCK_PATTERN이 h2/p/blockquote만 인식해서
+# <hr>은 그냥 사라지므로(naver_publisher.parse_body_blocks 참고) <p> 형태로 넣는다.
+DIGEST_SEPARATOR_HTML = '<p>· · ·</p>'
 
 # 모음글 안에서 링크 문구를 매번 똑같이 반복하지 않도록 순환시킨다(광고성으로 안
 # 보이게 하기 위한 요구사항, B안 지시문 "공통 원칙" 참고).
@@ -57,12 +62,43 @@ DIGEST_LINK_PHRASES = [
 def _digest_segment_html(category_label: str, summary_lines: list[str], link: str, phrase: str) -> str:
     """모음글 안 항목 하나의 텍스트를 만든다 — 서현이 아빠가 따로 지어낸 티저가 아니라,
     지니 글 자체의 요약(summary_lines, ReprocessedContent에 이미 있는 필드)을 그대로
-    써서 "지니 글을 요약해서 링크로 안내"한다는 사용자 요구사항을 충족한다."""
+    써서 "지니 글을 요약해서 링크로 안내"한다는 사용자 요구사항을 충족한다.
+
+    2026-09-16: <a href> 태그를 실제 네이버 에디터에 붙여넣기 했을 때 링크 자체가
+    통째로 사라지는 문제 확인됨(naver_publisher._build_paragraph_html은 <a>를 스타일
+    입힌 앵커로 올바르게 변환하지만, 네이버 스마트에디터의 붙여넣기 정화 로직이 외부
+    클립보드에서 온 <a> 태그를 걸러내는 것으로 보임 — 코드 리뷰 때는 구조만 확인했고
+    실제 네이버 붙여넣기로는 이번이 첫 검증이었음). 앵커가 걸러지더라도 최소한 링크가
+    눈에 보이고 복사해서 이동할 수 있도록, URL 자체를 문구 뒤에 평문으로 같이 남긴다."""
     parts = [f"<h2>{html.escape(category_label)}</h2>"]
     for line in summary_lines:
         parts.append(f"<p>{html.escape(line)}</p>")
     parts.append(f'<p><a href="{link}">{phrase}</a></p>')
+    parts.append(f"<p>{html.escape(link)}</p>")
     return "".join(parts)
+
+
+def _next_digest_title() -> str:
+    """모음글(콘텐츠 A/B) 제목 — '삼프로'처럼 원 채널명을 제목에 그대로 쓰면
+    저작권/부정경쟁방지법 리스크가 있어서(사용자 지적, 2026-09-16) 브랜드명 대신
+    'TODAY ISSUE 날짜_당일발행횟수' 형식으로 통일한다. 카운터는 콘텐츠 A/B 공통으로
+    하루치를 센다(그날 몇 번째 모음글인지) — 날짜가 바뀌면 자동으로 1부터 다시 센다."""
+    today_str = datetime.now(KST).date().isoformat()
+    count = 0
+    if os.path.exists(DIGEST_COUNTER_PATH):
+        try:
+            with open(DIGEST_COUNTER_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("date") == today_str:
+                count = data.get("count", 0)
+        except Exception:
+            count = 0
+    count += 1
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(DIGEST_COUNTER_PATH, "w", encoding="utf-8") as f:
+        json.dump({"date": today_str, "count": count}, f, ensure_ascii=False, indent=2)
+    date_label = datetime.now(KST).strftime("%m%d")
+    return f"TODAY ISSUE {date_label}_{count}"
 
 
 def _queue_naver_version(naver_content, topic: str, category_label: str, image_bytes: bytes | None) -> None:
@@ -233,12 +269,14 @@ def _queue_digest_b(entries: list[dict]) -> None:
     )
     segments = [{"html": intro, "image_bytes": None}]
     for i, entry in enumerate(entries):
+        if i > 0:
+            segments.append({"html": DIGEST_SEPARATOR_HTML, "image_bytes": None})
         phrase = DIGEST_LINK_PHRASES[i % len(DIGEST_LINK_PHRASES)]
         seg_html = _digest_segment_html(entry["category_label"], entry["summary_lines"], entry["link"], phrase)
         segments.append({"html": seg_html, "image_bytes": entry.get("infographic_bytes")})
     segments.append({"html": "<p>오늘도 읽어주셔서 감사합니다 😊.</p>", "image_bytes": None})
 
-    title = f"{today_label} 경제 이슈 브리핑 모음"
+    title = _next_digest_title()
     queue_naver_digest_draft(
         title=title,
         summary_lines=[e["category_label"] for e in entries],
@@ -307,11 +345,13 @@ def run_sampro_digest() -> None:
 
     today_label = datetime.now(KST).strftime("%m월 %d일")
     intro = (
-        f"<p>안녕하세요, 서현이 아빠입니다 🙌 오늘({today_label}) 삼프로TV 관련해서 "
-        "지니가 정리한 글들을 모아봤어요.</p>"
+        f"<p>안녕하세요, 서현이 아빠입니다 🙌 오늘({today_label}) 지니가 정리한 "
+        "경제 콘텐츠들을 모아봤어요.</p>"
     )
     segments = [{"html": intro, "image_bytes": None}]
     for i, entry in enumerate(entries):
+        if i > 0:
+            segments.append({"html": DIGEST_SEPARATOR_HTML, "image_bytes": None})
         phrase = DIGEST_LINK_PHRASES[i % len(DIGEST_LINK_PHRASES)]
         seg_html = _digest_segment_html(entry["title"], entry.get("summary_lines") or [], entry["link"], phrase)
         image_bytes = None
@@ -323,7 +363,7 @@ def run_sampro_digest() -> None:
         segments.append({"html": seg_html, "image_bytes": image_bytes})
     segments.append({"html": "<p>오늘도 읽어주셔서 감사합니다 😊.</p>", "image_bytes": None})
 
-    title = f"{today_label} 삼프로TV 경제 콘텐츠 모음"
+    title = _next_digest_title()
     queue_naver_digest_draft(
         title=title,
         summary_lines=[e["title"] for e in entries],
