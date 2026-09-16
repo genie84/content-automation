@@ -51,6 +51,16 @@ DIGEST_COUNTER_PATH = os.path.join(DATA_DIR, "digest_publish_count.json")
 # <hr>은 그냥 사라지므로(naver_publisher.parse_body_blocks 참고) <p> 형태로 넣는다.
 DIGEST_SEPARATOR_HTML = '<p>· · ·</p>'
 
+
+def _digest_intro_html(today_label: str) -> str:
+    """모음글(콘텐츠 A/B) 공통 인트로 — 2026-09-16 사용자 지정 고정 문구.
+    본체(램프지니) 사이트를 명시적으로 안내해 크로스 프로모션 목적을 분명히 한다."""
+    return (
+        f"<p>안녕하세요, 서현이 아빠입니다 🙌 오늘({today_label}) 지니가 정리한 "
+        "분야별 경제 이슈들을 모아봤어요.</p>"
+        "<p>서현이 아빠의 본체 LAMPGENIE.CO.KR 사이트에서 세부내용 확인해주세요.</p>"
+    )
+
 # 모음글 안에서 링크 문구를 매번 똑같이 반복하지 않도록 순환시킨다(광고성으로 안
 # 보이게 하기 위한 요구사항, B안 지시문 "공통 원칙" 참고).
 DIGEST_LINK_PHRASES = [
@@ -263,10 +273,7 @@ def _queue_digest_b(entries: list[dict]) -> None:
     큐에 넣는다. 이미 생성된 콘텐츠를 재활용하는 것이라 추가 Gemini 호출은 없다.
     항목마다 이미지가 따로 붙으므로 queue_naver_digest_draft(segments 방식)를 쓴다."""
     today_label = datetime.now(KST).strftime("%m월 %d일")
-    intro = (
-        f"<p>안녕하세요, 서현이 아빠입니다 🙌 오늘({today_label}) 지니가 정리한 "
-        "분야별 경제 이슈들을 모아봤어요.</p>"
-    )
+    intro = _digest_intro_html(today_label)
     segments = [{"html": intro, "image_bytes": None}]
     for i, entry in enumerate(entries):
         if i > 0:
@@ -344,10 +351,7 @@ def run_sampro_digest() -> None:
         return
 
     today_label = datetime.now(KST).strftime("%m월 %d일")
-    intro = (
-        f"<p>안녕하세요, 서현이 아빠입니다 🙌 오늘({today_label}) 지니가 정리한 "
-        "경제 콘텐츠들을 모아봤어요.</p>"
-    )
+    intro = _digest_intro_html(today_label)
     segments = [{"html": intro, "image_bytes": None}]
     for i, entry in enumerate(entries):
         if i > 0:
