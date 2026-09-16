@@ -63,6 +63,7 @@ import json
 import os
 import random
 import re
+import subprocess
 import sys
 import time
 import uuid
@@ -116,6 +117,14 @@ LOGIN_WAIT_TIMEOUT_SEC = 300  # 사람이 직접 로그인할 시간(5분)
 LOGIN_POLL_INTERVAL_SEC = 2
 # 로그인 후 화면을 확인할 수 있도록 창을 바로 닫지 않고 이만큼 더 유지한다.
 POST_ACTION_LINGER_SEC = 15
+
+# (2026-09-16) 세션 만료를 큐 처리 중에 자동 감지하면, 사람이 언제 휴대폰으로 확인할지
+# 알 수 없으니 5분보다 훨씬 넉넉하게 기다리는 "대기 로그인" 모드를 따로 둔다 —
+# noVNC(6080)로 접속해서 그 안에서 바로 로그인하면 됨(_maybe_start_standby_login 참고).
+STANDBY_LOGIN_WAIT_SEC = 1200  # 20분
+NOVNC_URL = "http://161.33.166.77:6080/vnc.html"
+EXPIRY_ALERT_MARK_PATH = os.path.join(DATA_DIR, "naver_expiry_alert.json")
+EXPIRY_ALERT_COOLDOWN_SEC = 1800  # 같은 만료로 카카오 중복 발송 방지(30분)
 
 
 def queue_naver_draft(
@@ -220,7 +229,7 @@ def _on_login_form(page) -> bool:
         return False
 
 
-def login_and_explore(blog_id: str | None = None):
+def login_and_explore(blog_id: str | None = None, wait_timeout_sec: int = LOGIN_WAIT_TIMEOUT_SEC):
     """저장된 storage_state가 있으면 그 세션으로 브라우저를 띄우고, 없거나 만료됐으면
     로그인 페이지를 띄운다. 로그인 페이지의 아이디 입력창이 보이면 사람이 직접 로그인할
     때까지 기다리고, 로그인이 확인되는 즉시(그리고 끝에서 한 번 더) storage_state를
@@ -245,10 +254,10 @@ def login_and_explore(blog_id: str | None = None):
         time.sleep(1)
 
         if _on_login_form(page):
-            print(f"브라우저 창에서 네이버에 직접 로그인해주세요 (최대 {LOGIN_WAIT_TIMEOUT_SEC}초 대기).")
+            print(f"브라우저 창에서 네이버에 직접 로그인해주세요 (최대 {wait_timeout_sec}초 대기).")
             waited = 0
             logged_in = False
-            while waited < LOGIN_WAIT_TIMEOUT_SEC:
+            while waited < wait_timeout_sec:
                 time.sleep(LOGIN_POLL_INTERVAL_SEC)
                 waited += LOGIN_POLL_INTERVAL_SEC
                 try:
@@ -258,7 +267,7 @@ def login_and_explore(blog_id: str | None = None):
                 except Exception:
                     continue
             if not logged_in:
-                print(f"{LOGIN_WAIT_TIMEOUT_SEC}초 안에 로그인이 확인되지 않았습니다. 다시 실행해주세요.")
+                print(f"{wait_timeout_sec}초 안에 로그인이 확인되지 않았습니다. 다시 실행해주세요.")
                 context.close()
                 browser.close()
                 return
@@ -500,6 +509,54 @@ def _goto_write_page(page, blog_id: str):
     raise RuntimeError("mainFrame을 찾지 못했습니다(페이지 로딩 실패 가능성)")
 
 
+def _maybe_start_standby_login() -> None:
+    """큐 처리 중 전 항목이 실패했을 때(=단순 세션 만료로 추정, 보안 이상 신호는 아님)
+    호출한다. 사람이 언제 휴대폰을 확인할지 알 수 없으므로, 카카오로 즉시 알리는 동시에
+    서버에 "대기 로그인" 브라우저를 STANDBY_LOGIN_WAIT_SEC(20분)간 띄워둔다 — 알림을
+    보고 noVNC(NOVNC_URL)로 접속하면 바로 로그인 화면이 떠 있다. 재실행마다 카카오가
+    중복 발송되지 않도록 쿨다운을 둔다(EXPIRY_ALERT_COOLDOWN_SEC)."""
+    now = time.time()
+    last = 0.0
+    if os.path.exists(EXPIRY_ALERT_MARK_PATH):
+        try:
+            with open(EXPIRY_ALERT_MARK_PATH, "r", encoding="utf-8") as f:
+                last = json.load(f).get("ts", 0.0)
+        except Exception:
+            last = 0.0
+    if now - last < EXPIRY_ALERT_COOLDOWN_SEC:
+        print("    (세션 만료 알림 쿨다운 중 — 카카오 재발송/재대기 생략)")
+        return
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(EXPIRY_ALERT_MARK_PATH, "w", encoding="utf-8") as f:
+        json.dump({"ts": now}, f)
+
+    try:
+        send_kakao_alert(
+            "🔑 네이버 세션 만료 — 재로그인 필요\n"
+            f"서버에 로그인 대기 화면을 {STANDBY_LOGIN_WAIT_SEC // 60}분간 띄워뒀습니다.\n"
+            "아래 링크로 접속해 비밀번호 입력 후 네이버에 로그인해주세요.",
+            link=NOVNC_URL,
+        )
+        print("    카카오로 세션 만료 알림 전송함.")
+    except Exception as e:
+        print(f"    카카오 만료 알림 전송 실패: {type(e).__name__}: {e}")
+
+    try:
+        log_path = os.path.join(DATA_DIR, "standby_login.log")
+        with open(log_path, "a", encoding="utf-8") as logf:
+            subprocess.Popen(
+                [sys.executable, "-m", "scripts.naver_publisher", "--standby-login"],
+                cwd=os.path.dirname(DATA_DIR),
+                start_new_session=True,
+                stdout=logf,
+                stderr=subprocess.STDOUT,
+            )
+        print(f"    로그인 대기 화면 실행됨(최대 {STANDBY_LOGIN_WAIT_SEC // 60}분 대기) — {NOVNC_URL}")
+    except Exception as e:
+        print(f"    로그인 대기 화면 실행 실패: {type(e).__name__}: {e}")
+
+
 def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
     """큐에 쌓인 초안을 전부 순서대로 네이버 에디터에 서식을 입혀 임시저장한다(브라우저는
     한 번만 띄우고 항목마다 재사용). 발행(publish)은 절대 하지 않는다 — 사용자가 네이버
@@ -523,6 +580,7 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
     print(f"대기 중인 초안 {len(item_ids)}건을 처리합니다.")
     success = 0
     failed = 0
+    anomaly_detected = False
 
     with sync_playwright() as p:
         # (2026-09-15) headless=True(경량 shell), headless=False+--headless=new(진짜
@@ -573,6 +631,7 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
 
                 anomaly = _check_security_anomaly(page)
                 if anomaly:
+                    anomaly_detected = True
                     print(f"    ⚠ 보안 이상 신호 감지('{anomaly}') — 카카오로 즉시 알리고 이번 실행은 중단합니다.")
                     try:
                         send_kakao_alert(
@@ -598,11 +657,21 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
         browser.close()
 
     print(f"완료: 성공 {success}건, 실패 {failed}건. 최종 발행은 네이버 블로그 화면에서 직접 확인 후 진행해주세요.")
+
+    # 전 항목이 실패했고 보안 이상 신호는 아니었다면(이미 별도 알림/중단 처리됨),
+    # 단순 세션 만료로 보고 카카오 알림 + 서버 대기 로그인 화면을 자동으로 준비한다
+    # (2026-09-16, "재로그인을 매일 PC에서 해야 하면 자동화가 아니다"라는 지적에 대응 —
+    # 이제 만료 시 사람이 할 일은 카카오 알림 보고 휴대폰으로 noVNC 접속뿐).
+    if item_ids and success == 0 and failed == len(item_ids) and not anomaly_detected:
+        print("  - 전 항목 실패, 보안 이상 신호 없음 — 단순 세션 만료로 판단, 재로그인 대기 화면을 준비합니다.")
+        _maybe_start_standby_login()
     return {"success": success, "failed": failed}
 
 
 if __name__ == "__main__":
     if "--login" in sys.argv:
         login_and_explore()
+    elif "--standby-login" in sys.argv:
+        login_and_explore(wait_timeout_sec=STANDBY_LOGIN_WAIT_SEC)
     else:
         publish_all_pending_drafts_to_naver()
