@@ -57,6 +57,14 @@ headless=False로 통일하고, naver_server_runner.sh가 실행 전에 Xvfb를 
 git으로 커밋되어 클라우드→로컬로 전달된다(예전 1건짜리 방식은 로컬 전용이라 git
 추적 제외였는데, 이제는 반대로 커밋 대상이다 — .gitignore도 그에 맞게 수정함). 로컬에서
 이 스크립트를 실행하기 전에 `git pull`로 최신 큐를 받아와야 한다.
+
+(v8, 2026-09-16): 영상/주제 글마다 만들던 "개별 전체 분량 서현이 아빠 글"
+(queue_naver_draft, reprocess_content_naver/reprocess_topic_naver)을 완전히 폐지했다
+— 네이버 안에서 전체 분량 글이 완결되면 램프지니로 넘어갈 이유가 없어져서, "네이버는
+요약+이미지+링크만, 세부는 램프지니로 트래픽 유도"라는 원래 목적과 정면으로 어긋났다
+(사용자 지적). 이제 네이버에 올라가는 글은 콘텐츠 A(삼프로 모음)/B(카테고리 모음)
+두 모음글뿐이고, 전부 queue_naver_digest_draft 하나로만 큐에 들어간다 — 지니 글을 다시
+쓰는 Gemini 호출 자체가 없어져서 비용도 같이 줄었다.
 """
 import html
 import json
@@ -127,38 +135,6 @@ EXPIRY_ALERT_MARK_PATH = os.path.join(DATA_DIR, "naver_expiry_alert.json")
 EXPIRY_ALERT_COOLDOWN_SEC = 1800  # 같은 만료로 카카오 중복 발송 방지(30분)
 
 
-def queue_naver_draft(
-    title: str,
-    summary_lines: list[str],
-    table_rows: list[dict],
-    body_html: str,
-    topic: str,
-    category_label: str,
-    image_bytes: bytes | None,
-) -> str:
-    """지니 트랙(main.py, 클라우드)이 같은 소스(영상 자막 또는 리서치 사실관계)로 만든
-    서현이 아빠 초안 하나를 큐에 추가한다. 실제 네이버 발행은 로컬에서 이 파일의
-    publish_all_pending_drafts_to_naver()를 실행할 때 큐에 쌓인 걸 전부 처리한다.
-    반환값은 큐 항목 id."""
-    os.makedirs(QUEUE_DIR, exist_ok=True)
-    item_id = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
-    payload = {
-        "title": title,
-        "summary_lines": summary_lines,
-        "table_rows": table_rows,
-        "body_html": body_html,
-        "topic": topic,
-        "category_label": category_label,
-        "has_image": image_bytes is not None,
-    }
-    with open(os.path.join(QUEUE_DIR, f"{item_id}.json"), "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    if image_bytes is not None:
-        with open(os.path.join(QUEUE_DIR, f"{item_id}.png"), "wb") as f:
-            f.write(image_bytes)
-    return item_id
-
-
 def queue_naver_digest_draft(
     title: str,
     summary_lines: list[str],
@@ -166,8 +142,10 @@ def queue_naver_digest_draft(
     topic: str,
     category_label: str,
 ) -> str:
-    """콘텐츠 A/B(모음글) 전용 — 링크 건 항목마다 이미지가 각각 따로 붙는 구조라 body_html
-    하나 + 이미지 하나짜리 queue_naver_draft로는 표현이 안 돼서 별도로 만든다.
+    """네이버에 올라가는 모든 글(콘텐츠 A/B 모음글)은 이 함수 하나로 큐에 들어간다
+    (2026-09-16부터 개별 전체 분량 글은 더 이상 만들지 않음 — 네이버는 요약+이미지+
+    램프지니 링크만 보여주고 세부는 램프지니로 트래픽을 유도하는 게 유일한 목적).
+    링크 건 항목마다 이미지가 각각 따로 붙는 구조라 segments 리스트로 받는다.
     segments: [{"html": "<h2>...</h2><p>...</p>", "image_bytes": bytes|None}, ...]
     순서대로 붙여넣기→(있으면) 그 자리에 이미지 삽입을 반복한다(apply_formatting 참고).
     반환값은 큐 항목 id."""
@@ -442,12 +420,10 @@ def build_styled_body_html(body_html: str, table_rows: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def apply_formatting(frame, page, content: dict, image_path: str | None = None, item_id: str | None = None) -> None:
-    """대기 중인 초안을 에디터에 실제로 입력한다. 두 가지 형태를 지원한다:
-    - 일반 글(body_html/table_rows): 본문(+표) 붙여넣기 직후, 문서 맨 끝에 이미지를
-      한 장 첨부(image_path가 있으면) — 지니용으로 만든 인포그래픽 재사용.
-    - 모음글(콘텐츠 A/B, content["segments"]): 항목마다 텍스트 붙여넣기 → 그 항목의
-      이미지 삽입을 순서대로 반복한다(queue_naver_digest_draft 참고)."""
+def apply_formatting(frame, page, content: dict, item_id: str | None = None) -> None:
+    """대기 중인 초안(모음글, content["segments"])을 에디터에 실제로 입력한다 — 항목마다
+    텍스트 붙여넣기 → 그 항목의 이미지 삽입을 순서대로 반복한다(queue_naver_digest_draft
+    참고). 2026-09-16부터 네이버에 올라가는 글은 전부 이 모음글 형태뿐이다."""
     actions.dismiss_resume_popup(frame, page)
     actions.dismiss_tooltip(page)
 
@@ -455,27 +431,19 @@ def apply_formatting(frame, page, content: dict, image_path: str | None = None, 
     actions.click_body(frame, page)
     time.sleep(0.3)
 
-    if content.get("segments"):
-        for i, seg in enumerate(content["segments"]):
-            styled_html = build_styled_body_html(seg["html"], [])
-            actions.paste_html(frame, page, styled_html)
-            if seg.get("has_image"):
-                seg_image_path = os.path.join(QUEUE_DIR, f"{item_id}_seg{i}.png")
-                if os.path.exists(seg_image_path):
-                    actions.insert_image(frame, page, seg_image_path)
-            # 붙여넣기 직후 커서가 방금 넣은 마지막 문단 끝에 그대로 남아있어서, 다음
-            # 항목을 바로 붙이면 새 블록으로 안 잡히고 그 문단 끝에 그대로 이어붙는
-            # 문제 확인됨(2026-09-16, h2 소제목이 볼드/큰글씨 없이 앞 문장에 붙어 나옴).
-            # Enter로 빈 문단을 새로 만들어두고 다음 항목을 그 위에 붙인다.
-            page.keyboard.press("Enter")
-            time.sleep(0.3)
-        return
-
-    styled_body_html = build_styled_body_html(content["body_html"], content.get("table_rows") or [])
-    actions.paste_html(frame, page, styled_body_html)
-
-    if image_path:
-        actions.insert_image(frame, page, image_path)
+    for i, seg in enumerate(content["segments"]):
+        styled_html = build_styled_body_html(seg["html"], [])
+        actions.paste_html(frame, page, styled_html)
+        if seg.get("has_image"):
+            seg_image_path = os.path.join(QUEUE_DIR, f"{item_id}_seg{i}.png")
+            if os.path.exists(seg_image_path):
+                actions.insert_image(frame, page, seg_image_path)
+        # 붙여넣기 직후 커서가 방금 넣은 마지막 문단 끝에 그대로 남아있어서, 다음
+        # 항목을 바로 붙이면 새 블록으로 안 잡히고 그 문단 끝에 그대로 이어붙는
+        # 문제 확인됨(2026-09-16, h2 소제목이 볼드/큰글씨 없이 앞 문장에 붙어 나옴).
+        # Enter로 빈 문단을 새로 만들어두고 다음 항목을 그 위에 붙인다.
+        page.keyboard.press("Enter")
+        time.sleep(0.3)
 
 
 def save_as_draft(frame) -> None:
@@ -609,13 +577,10 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
 
         for i, item_id in enumerate(item_ids):
             content = load_queued_draft(item_id)
-            image_path = os.path.join(QUEUE_DIR, f"{item_id}.png")
-            if not os.path.exists(image_path):
-                image_path = None
-            print(f"  - 처리 중: {content['title']}" + (" (이미지 포함)" if image_path else ""))
+            print(f"  - 처리 중: {content['title']}")
             try:
                 frame = _goto_write_page(page, blog_id)
-                apply_formatting(frame, page, content, image_path=image_path, item_id=item_id)
+                apply_formatting(frame, page, content, item_id=item_id)
                 save_as_draft(frame)
                 remove_queued_draft(item_id)
                 success += 1

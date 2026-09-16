@@ -3,14 +3,16 @@
 GitHub Actions 스케줄(09:00 KST)로 실행되며 여기서는 호출하지 않는다 — 예전에는 영상
 트랙 실행 안에서 하루 1회만 끼워 돌렸는데, 2026-09-09부터 독립 스케줄로 분리됨.
 
-2026-09-15부터 네이버-램프지니 크로스 프로모션(B안) 추가: 지니(워드프레스) 글이
-이제 draft가 아니라 자동 공개(publish)되므로(방문자가 바로 볼 수 있음), 그 링크를
-모아 서현이 아빠 블로그에서 "모음글" 형태로 소개한다 — 개별 글마다 외부 링크를
-반복 삽입하면 광고성/저품질 판정 리스크가 있어서, 모음글 안에서만 링크를 건다.
+2026-09-15부터 네이버-램프지니 크로스 프로모션(B안) 추가, 2026-09-16 전면 개편:
+네이버에는 개별 전체 분량 글을 올리지 않는다(예전엔 올렸었는데, "네이버는 요약+이미지만
+보여주고 세부는 램프지니로 트래픽을 이동시킨다"는 목적과 어긋나서 폐지함 — 전체 분량
+글이 네이버 안에서 완결되면 램프지니로 넘어갈 이유가 없어짐). 지니(워드프레스) 글은
+draft가 아니라 자동 공개(publish)되고, 그 링크만 모아 서현이 아빠 블로그에 "모음글"
+형태로 소개한다 — 자동화되는 모든 콘텐츠가 이 기준 하나로 통일됨.
 - 콘텐츠 B(카테고리 모음): 카테고리 자동선정 트랙(09:00 KST) 실행 끝에 바로 이어서
-  생성 — 이미 만들어진 서현이 아빠 버전 본문을 재활용하므로 추가 Gemini 호출 없음.
+  생성 — 지니 글 자신의 요약(summary_lines)을 재활용하므로 추가 Gemini 호출 없음.
 - 콘텐츠 A(삼프로 모음): 영상 트랙이 하루 여러 번(07:45~19:00 KST) 돌면서 쌓아둔
-  기록(data/today_video_posts.json)을, 마지막 영상 트랙 실행 이후인 19:20 KST
+  기록(data/today_video_posts.json)을, 마지막 영상 트랙 실행 이후인 19:35 KST
   별도 GitHub Actions 스케줄에서 `python main.py --sampro-digest`로 모아 발행한다."""
 import html
 import json
@@ -19,17 +21,10 @@ import sys
 from datetime import datetime
 
 from config.sources import SOURCES
-from scripts.gemini_reprocessor import (
-    get_client,
-    resolve_flash_model,
-    reprocess_content,
-    reprocess_content_naver,
-    reprocess_topic,
-    reprocess_topic_naver,
-)
+from scripts.gemini_reprocessor import get_client, resolve_flash_model, reprocess_content, reprocess_topic
 from scripts.html_assembler import assemble_html
 from scripts.kakao_notifier import send_kakao_notification
-from scripts.naver_publisher import queue_naver_digest_draft, queue_naver_draft
+from scripts.naver_publisher import queue_naver_digest_draft
 from scripts.rss_collector import collect_new_videos, load_seen_videos, save_seen_videos
 from scripts.topic_researcher import (
     KST,
@@ -111,25 +106,6 @@ def _next_digest_title() -> str:
     return f"TODAY ISSUE {date_label}_{count}"
 
 
-def _queue_naver_version(naver_content, topic: str, category_label: str, image_bytes: bytes | None) -> None:
-    """지니(워드프레스) 발행 뒤에 같은 소스로 서현이 아빠(네이버) 버전을 만들어 로컬
-    발행 대기 큐에 넣는다. 네이버 자체 발행은 여전히 로컬 수동 실행(원칙 유지).
-    image_bytes는 지니용으로 이미 만든 16:9 인포그래픽을 그대로 재사용한 것 —
-    채널별로 따로 만들면 이미지 생성 비용이 2배가 돼서, 2026-09-10에 지니용 한 장만
-    만들고 네이버에도 재사용하기로 확정함(네이버용 2:1 별도 규격은 이번엔 적용 안 함,
-    에디터가 알아서 리사이징하는 건 감수하기로 함)."""
-    queue_naver_draft(
-        title=naver_content.title,
-        summary_lines=naver_content.summary_lines,
-        table_rows=[r.model_dump() for r in naver_content.table_rows],
-        body_html=naver_content.body_html,
-        topic=topic,
-        category_label=category_label,
-        image_bytes=image_bytes,
-    )
-    print(f"  - 네이버용(서현이 아빠) 버전 큐에 저장됨: {naver_content.title}")
-
-
 def _record_video_post_for_digest(
     video_id: str, title: str, link: str, summary_lines: list[str], infographic_bytes: bytes | None
 ) -> None:
@@ -198,14 +174,6 @@ def run_video_track(client, model_name):
                 except Exception as e:
                     print(f"  - 카카오 알림 실패(발행은 정상): {type(e).__name__}: {e}")
 
-                try:
-                    naver_content = reprocess_content_naver(video, source, model_name, client)
-                    _queue_naver_version(
-                        naver_content, topic=video["title"], category_label=source["name"], image_bytes=infographic_bytes
-                    )
-                except Exception as e:
-                    print(f"  - 네이버용 버전 생성 실패(워드프레스 발행은 정상): {type(e).__name__}: {e}")
-
                 seen_ids.add(video["video_id"])
                 seen_videos[source["id"]] = sorted(seen_ids)
                 save_seen_videos(seen_videos)
@@ -219,9 +187,7 @@ def _publish_topic_post(category: dict, candidate, client, model_name: str) -> d
     카테고리 4개를 각각 독립적으로 처리하므로, 하나가 실패해도 나머지에 영향 없도록
     호출하는 쪽(run_topic_track)에서 개별적으로 감싼다.
     반환값은 콘텐츠 B(카테고리 모음) 큐잉에 쓸 {category_label, summary_lines,
-    infographic_bytes, link}(지니 자신의 요약/이미지를 그대로 재사용) — 네이버용
-    재가공까지 실패해도 지니 발행/이력 기록은 이미 끝난 상태라 None 대신 그래도
-    반환한다(콘텐츠 B는 서현이 아빠 버전 유무와 무관하게 지니 링크만 있으면 됨)."""
+    infographic_bytes, link}(지니 자신의 요약/이미지를 그대로 재사용)."""
     facts = verify_facts(candidate, category, client, model_name)
     source_text = facts_to_source_text(facts)
     content = reprocess_topic(candidate.topic, category["label"], source_text, model_name, client)
@@ -248,17 +214,6 @@ def _publish_topic_post(category: dict, candidate, client, model_name: str) -> d
 
     record_topic_history(candidate.topic, category["id"])
 
-    try:
-        # source_text 재사용 — verify_facts(그라운딩, 유료)를 또 호출하지 않는다.
-        naver_content = reprocess_topic_naver(candidate.topic, category["label"], source_text, model_name, client)
-        _queue_naver_version(
-            naver_content, topic=candidate.topic, category_label=category["label"], image_bytes=infographic_bytes
-        )
-    except Exception as e:
-        print(f"  - 네이버용(개별) 버전 생성 실패(워드프레스 발행은 정상): {type(e).__name__}: {e}")
-
-    # 콘텐츠 B는 서현이 아빠 개별 버전과 무관하게 지니 자신의 요약/이미지만 있으면
-    # 되므로, 위 네이버용 재가공 성공 여부와 상관없이 항상 반환한다.
     return {
         "category_label": category["label"],
         "summary_lines": content.summary_lines,
