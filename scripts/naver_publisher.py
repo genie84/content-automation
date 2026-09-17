@@ -134,6 +134,15 @@ NOVNC_URL = "http://161.33.166.77:6080/vnc.html"
 EXPIRY_ALERT_MARK_PATH = os.path.join(DATA_DIR, "naver_expiry_alert.json")
 EXPIRY_ALERT_COOLDOWN_SEC = 1800  # 같은 만료로 카카오 중복 발송 방지(30분)
 
+# (2026-09-17) 로그인 화면은 노트북 해상도(1280x900)를 그대로 쓰면 휴대폰 noVNC에서
+# 화면이 다 안 보이고 스크롤/이동 수단도 마땅치 않아 로그인 자체가 불가능했다(실사용자
+# 보고로 확인). 로그인/대기로그인 전용으로 폰 화면 비율에 맞는 별도 가상 디스플레이(:98,
+# 로그인용 VNC는 로컬 5901번, 외부 노출은 기존 6080 그대로 재사용)를 따로 둬서, 화면
+# 전체가 확대/스크롤 없이 폰에 한 번에 들어오게 한다. 큐 처리용 :99(1280x900)는 그대로
+# 둔다 — 에디터 서식 자동화가 그 해상도 기준으로 안정적으로 맞춰져 있어서 건드리지 않음.
+LOGIN_DISPLAY = ":98"
+LOGIN_VIEWPORT = {"width": 420, "height": 900}
+
 
 def queue_naver_digest_draft(
     title: str,
@@ -218,11 +227,17 @@ def login_and_explore(blog_id: str | None = None, wait_timeout_sec: int = LOGIN_
     blog_id = blog_id or os.environ.get("NAVER_BLOG_ID")
     storage_state = STORAGE_STATE_PATH if os.path.exists(STORAGE_STATE_PATH) else None
 
+    # 로컬 PC에서 직접 돌릴 땐 DISPLAY가 아예 없는 게 정상(그냥 창이 뜸)이라, 서버에서
+    # 폰 전용 가상 디스플레이(:98)가 실제로 떠 있을 때만 그쪽으로 돌린다 — 없으면 기존
+    # 동작(로컬 창 또는 이미 지정된 DISPLAY) 그대로 둔다.
+    if os.environ.get("DISPLAY") and os.environ["DISPLAY"] != LOGIN_DISPLAY:
+        os.environ["DISPLAY"] = LOGIN_DISPLAY
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
         context = browser.new_context(
             storage_state=storage_state,
-            viewport={"width": 1280, "height": 900},
+            viewport=LOGIN_VIEWPORT,
             locale="ko-KR",
             timezone_id="Asia/Seoul",
         )
