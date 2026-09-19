@@ -129,7 +129,14 @@ POST_ACTION_LINGER_SEC = 15
 # (2026-09-16) 세션 만료를 큐 처리 중에 자동 감지하면, 사람이 언제 휴대폰으로 확인할지
 # 알 수 없으니 5분보다 훨씬 넉넉하게 기다리는 "대기 로그인" 모드를 따로 둔다 —
 # noVNC(6080)로 접속해서 그 안에서 바로 로그인하면 됨(_maybe_start_standby_login 참고).
-STANDBY_LOGIN_WAIT_SEC = 1200  # 20분
+#
+# (2026-09-19) 처음엔 20분만 열어뒀는데, 카카오 알림(토큰 만료로 실패 중)이 안 가면 사람이
+# 그 20분 안에 접속할 방법이 없어서 폰으로 접속해도 빈 화면만 보였다(09/18 로그로 확인:
+# 접속은 성공했지만 창이 닫힌 뒤). 이제 로그인할 때까지(최대 24시간) 계속 열어두고,
+# 로그인이 끝나면 곧바로 밀린 큐를 처리한다. 접속했을 때 로그인 창이 보이면 로그인,
+# 빈 화면이면 지금은 할 일이 없다는 뜻이다.
+STANDBY_LOGIN_WAIT_SEC = 24 * 3600
+STANDBY_RELOAD_INTERVAL_SEC = 600  # 입력창이 비어 있을 때만 로그인 페이지를 새로고침(오래된 폼 방지)
 NOVNC_URL = "http://161.33.166.77:6080/vnc.html"
 EXPIRY_ALERT_MARK_PATH = os.path.join(DATA_DIR, "naver_expiry_alert.json")
 EXPIRY_ALERT_COOLDOWN_SEC = 1800  # 같은 만료로 카카오 중복 발송 방지(30분)
@@ -216,14 +223,21 @@ def _on_login_form(page) -> bool:
         return False
 
 
-def login_and_explore(blog_id: str | None = None, wait_timeout_sec: int = LOGIN_WAIT_TIMEOUT_SEC):
+def login_and_explore(
+    blog_id: str | None = None,
+    wait_timeout_sec: int = LOGIN_WAIT_TIMEOUT_SEC,
+    reload_when_idle: bool = False,
+) -> bool:
     """저장된 storage_state가 있으면 그 세션으로 브라우저를 띄우고, 없거나 만료됐으면
     로그인 페이지를 띄운다. 로그인 페이지의 아이디 입력창이 보이면 사람이 직접 로그인할
     때까지 기다리고, 로그인이 확인되는 즉시(그리고 끝에서 한 번 더) storage_state를
     디스크에 저장한다 — 브라우저 종료 타이밍과 무관하게 세션 쿠키가 남도록.
     blog_id를 안 주면 .env의 NAVER_BLOG_ID를 쓴다(둘 다 없으면 블로그 홈만 확인) —
     페이지에서 아무 링크나 주워 블로그 ID를 추측하지 않는다(전에 엉뚱한 블로그로
-    이동한 원인이 이거였음)."""
+    이동한 원인이 이거였음).
+    reload_when_idle: 오래 대기하는 모드에서, 아이디/비밀번호 입력창이 둘 다 비어 있을 때만
+    STANDBY_RELOAD_INTERVAL_SEC마다 로그인 페이지를 새로고침한다(입력 중인 내용은 건드리지
+    않음). 반환값: 로그인된 세션 확보 여부(True) 또는 대기 시간 초과(False)."""
     blog_id = blog_id or os.environ.get("NAVER_BLOG_ID")
     storage_state = STORAGE_STATE_PATH if os.path.exists(STORAGE_STATE_PATH) else None
 
@@ -249,21 +263,27 @@ def login_and_explore(blog_id: str | None = None, wait_timeout_sec: int = LOGIN_
         if _on_login_form(page):
             print(f"브라우저 창에서 네이버에 직접 로그인해주세요 (최대 {wait_timeout_sec}초 대기).")
             waited = 0
+            since_reload = 0
             logged_in = False
             while waited < wait_timeout_sec:
                 time.sleep(LOGIN_POLL_INTERVAL_SEC)
                 waited += LOGIN_POLL_INTERVAL_SEC
+                since_reload += LOGIN_POLL_INTERVAL_SEC
                 try:
                     if not _on_login_form(page) and "nidlogin" not in page.url:
                         logged_in = True
                         break
+                    if reload_when_idle and since_reload >= STANDBY_RELOAD_INTERVAL_SEC:
+                        since_reload = 0
+                        if not page.input_value("#id", timeout=2_000) and not page.input_value("#pw", timeout=2_000):
+                            page.reload(wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
                 except Exception:
                     continue
             if not logged_in:
                 print(f"{wait_timeout_sec}초 안에 로그인이 확인되지 않았습니다. 다시 실행해주세요.")
                 context.close()
                 browser.close()
-                return
+                return False
 
             os.makedirs(DATA_DIR, exist_ok=True)
             context.storage_state(path=STORAGE_STATE_PATH)
@@ -319,6 +339,7 @@ def login_and_explore(blog_id: str | None = None, wait_timeout_sec: int = LOGIN_
         time.sleep(POST_ACTION_LINGER_SEC)
         context.close()
         browser.close()
+    return True
 
 
 BLOCK_PATTERN = re.compile(r"<(h2|p|blockquote)>(.*?)</\1>", re.S)
@@ -492,12 +513,42 @@ def _goto_write_page(page, blog_id: str):
     raise RuntimeError("mainFrame을 찾지 못했습니다(페이지 로딩 실패 가능성)")
 
 
+def _standby_login_running() -> bool:
+    """이미 대기 로그인 프로세스가 떠 있는지(중복 실행 방지). 셸을 거치지 않고 pgrep을
+    직접 호출하므로 자기 자신을 매치하지 않는다."""
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "naver_publisher --standby-login"], capture_output=True, text=True, timeout=10
+        )
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except Exception:
+        return False
+
+
 def _maybe_start_standby_login() -> None:
     """큐 처리 중 전 항목이 실패했을 때(=단순 세션 만료로 추정, 보안 이상 신호는 아님)
-    호출한다. 사람이 언제 휴대폰을 확인할지 알 수 없으므로, 카카오로 즉시 알리는 동시에
-    서버에 "대기 로그인" 브라우저를 STANDBY_LOGIN_WAIT_SEC(20분)간 띄워둔다 — 알림을
-    보고 noVNC(NOVNC_URL)로 접속하면 바로 로그인 화면이 떠 있다. 재실행마다 카카오가
-    중복 발송되지 않도록 쿨다운을 둔다(EXPIRY_ALERT_COOLDOWN_SEC)."""
+    호출한다. 서버에 "대기 로그인" 브라우저를 로그인할 때까지(STANDBY_LOGIN_WAIT_SEC) 띄워
+    두고(이미 떠 있으면 새로 안 띄움), 카카오로 알린다 — noVNC(NOVNC_URL)로 접속했을 때
+    로그인 창이 보이면 로그인하면 되고, 로그인이 끝나면 밀린 큐가 곧바로 처리된다. 카카오는
+    재실행마다 중복 발송되지 않도록 쿨다운을 둔다(EXPIRY_ALERT_COOLDOWN_SEC) — 카카오가
+    실패해도(토큰 만료 등) 대기 화면은 그대로 떠 있다."""
+    if _standby_login_running():
+        print("    로그인 대기 화면이 이미 열려 있음 — 새로 띄우지 않음.")
+    else:
+        try:
+            log_path = os.path.join(DATA_DIR, "standby_login.log")
+            with open(log_path, "a", encoding="utf-8") as logf:
+                subprocess.Popen(
+                    [sys.executable, "-u", "-m", "scripts.naver_publisher", "--standby-login"],
+                    cwd=os.path.dirname(DATA_DIR),
+                    start_new_session=True,
+                    stdout=logf,
+                    stderr=subprocess.STDOUT,
+                )
+            print(f"    로그인 대기 화면 실행됨(로그인할 때까지 유지) — {NOVNC_URL}")
+        except Exception as e:
+            print(f"    로그인 대기 화면 실행 실패: {type(e).__name__}: {e}")
+
     now = time.time()
     last = 0.0
     if os.path.exists(EXPIRY_ALERT_MARK_PATH):
@@ -507,7 +558,7 @@ def _maybe_start_standby_login() -> None:
         except Exception:
             last = 0.0
     if now - last < EXPIRY_ALERT_COOLDOWN_SEC:
-        print("    (세션 만료 알림 쿨다운 중 — 카카오 재발송/재대기 생략)")
+        print("    (세션 만료 알림 쿨다운 중 — 카카오 재발송 생략)")
         return
 
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -517,27 +568,13 @@ def _maybe_start_standby_login() -> None:
     try:
         send_kakao_alert(
             "🔑 네이버 세션 만료 — 재로그인 필요\n"
-            f"서버에 로그인 대기 화면을 {STANDBY_LOGIN_WAIT_SEC // 60}분간 띄워뒀습니다.\n"
+            "서버에 로그인 화면을 띄워뒀습니다(로그인할 때까지 계속 열려 있어요).\n"
             "아래 링크로 접속해 비밀번호 입력 후 네이버에 로그인해주세요.",
             link=NOVNC_URL,
         )
         print("    카카오로 세션 만료 알림 전송함.")
     except Exception as e:
         print(f"    카카오 만료 알림 전송 실패: {type(e).__name__}: {e}")
-
-    try:
-        log_path = os.path.join(DATA_DIR, "standby_login.log")
-        with open(log_path, "a", encoding="utf-8") as logf:
-            subprocess.Popen(
-                [sys.executable, "-m", "scripts.naver_publisher", "--standby-login"],
-                cwd=os.path.dirname(DATA_DIR),
-                start_new_session=True,
-                stdout=logf,
-                stderr=subprocess.STDOUT,
-            )
-        print(f"    로그인 대기 화면 실행됨(최대 {STANDBY_LOGIN_WAIT_SEC // 60}분 대기) — {NOVNC_URL}")
-    except Exception as e:
-        print(f"    로그인 대기 화면 실행 실패: {type(e).__name__}: {e}")
 
 
 def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
@@ -652,6 +689,12 @@ if __name__ == "__main__":
     if "--login" in sys.argv:
         login_and_explore()
     elif "--standby-login" in sys.argv:
-        login_and_explore(wait_timeout_sec=STANDBY_LOGIN_WAIT_SEC)
+        if login_and_explore(wait_timeout_sec=STANDBY_LOGIN_WAIT_SEC, reload_when_idle=True):
+            # 로그인이 확인됐으니 밀린 큐를 곧바로 처리한다. 큐 처리와 git 동기화는 크론과 똑같이
+            # naver_server_runner.sh가 맡는다(동시 실행은 그 스크립트의 락이 막고, 큐 처리는
+            # 로그인용 :98이 아니라 에디터 서식이 맞춰진 :99에서 돈다).
+            print("로그인 확인됨 — 밀린 큐를 바로 처리합니다.", flush=True)
+            runner = os.path.join(os.path.dirname(os.path.abspath(__file__)), "naver_server_runner.sh")
+            subprocess.run(["bash", runner])
     else:
         publish_all_pending_drafts_to_naver()

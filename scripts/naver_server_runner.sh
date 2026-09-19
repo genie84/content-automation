@@ -8,6 +8,14 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 LOG_PREFIX="[$(date '+%Y-%m-%d %H:%M:%S %Z')]"
 
+# 크론 실행과 "로그인 직후 즉시 처리"(naver_publisher --standby-login)가 겹치면 같은 큐를
+# 두 번 처리하거나 git이 꼬이므로, 이미 돌고 있으면 이번 실행은 조용히 건너뛴다.
+exec 9>/tmp/naver_runner.lock
+if ! flock -n 9; then
+    echo "$LOG_PREFIX 다른 실행이 진행 중 — 이번 실행은 건너뜀"
+    exit 0
+fi
+
 echo "$LOG_PREFIX 큐 동기화 시작"
 if ! git pull --rebase origin main; then
     echo "$LOG_PREFIX git pull 실패 — rebase 되돌리고 이번 실행은 건너뜀"
@@ -21,7 +29,8 @@ fi
 export DISPLAY=:99
 if ! pgrep -f "Xvfb :99" > /dev/null; then
     echo "$LOG_PREFIX Xvfb 가상 디스플레이 시작"
-    nohup Xvfb :99 -screen 0 1280x900x24 > /tmp/xvfb.log 2>&1 &
+    # 9>&-: 실행 락(fd 9)을 오래 사는 Xvfb가 물려받으면 락이 영원히 안 풀린다.
+    nohup Xvfb :99 -screen 0 1280x900x24 > /tmp/xvfb.log 2>&1 9>&- &
     disown
     sleep 2
 fi
