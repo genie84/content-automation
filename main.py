@@ -336,7 +336,12 @@ def run_sampro_digest() -> None:
     # 다음날 중복 누적 방지 — 오늘 치는 소진 처리(내일부터 새로 쌓임).
     with open(VIDEO_DIGEST_PATH, "w", encoding="utf-8") as f:
         json.dump([], f)
+    # .gitkeep은 지우지 않는다 — 이 폴더가 저장소에서 사라지면 워크플로우의 git add
+    # (file_pattern에 이 폴더가 들어 있음)가 "pathspec did not match"로 실패해서 그날
+    # 상태(seen_videos 등) 커밋이 통째로 안 된다(2026-09-18~20에 실제로 발생).
     for fname in os.listdir(VIDEO_DIGEST_IMAGE_DIR) if os.path.isdir(VIDEO_DIGEST_IMAGE_DIR) else []:
+        if fname == ".gitkeep":
+            continue
         os.remove(os.path.join(VIDEO_DIGEST_IMAGE_DIR, fname))
 
 

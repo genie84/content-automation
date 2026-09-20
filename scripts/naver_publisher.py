@@ -135,7 +135,7 @@ POST_ACTION_LINGER_SEC = 15
 # 접속은 성공했지만 창이 닫힌 뒤). 이제 로그인할 때까지(최대 24시간) 계속 열어두고,
 # 로그인이 끝나면 곧바로 밀린 큐를 처리한다. 접속했을 때 로그인 창이 보이면 로그인,
 # 빈 화면이면 지금은 할 일이 없다는 뜻이다.
-STANDBY_LOGIN_WAIT_SEC = 24 * 3600
+STANDBY_LOGIN_WAIT_SEC = 72 * 3600  # 24시간이던 상한이 사람이 못 들어온 사이 끝나 빈 화면이 됐다(09/20)
 STANDBY_RELOAD_INTERVAL_SEC = 600  # 입력창이 비어 있을 때만 로그인 페이지를 새로고침(오래된 폼 방지)
 NOVNC_URL = "http://161.33.166.77:6080/vnc.html"
 EXPIRY_ALERT_MARK_PATH = os.path.join(DATA_DIR, "naver_expiry_alert.json")
