@@ -10,6 +10,7 @@ import requests
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts import image_host
 from scripts.gemini_reprocessor import ReprocessedContent, TableRow
 from scripts.infographic_generator import generate_infographic
 from scripts.wordpress_publisher import upload_media
@@ -81,24 +82,62 @@ def build_infographic_html(
     미디어 ID는 featured_media(대표 이미지) 필드에 매핑하는 데 쓰고, PNG 바이트는
     네이버(서현이 아빠) 쪽에서 같은 이미지를 재사용할 때 쓴다(채널마다 따로 만들면
     비용이 2배가 돼서, 지니용 16:9 한 장만 만들고 네이버에도 그대로 재사용하기로
-    확정함, 2026-09-10). 실패 시 ("", None, None)."""
+    확정함, 2026-09-10). 이미지 생성 자체가 실패하면 ("", None, None).
+
+    본문 이미지는 이미지 전용 GitHub 저장소(jsDelivr)가 설정돼 있으면 거기에 올리고 워드프레스
+    디스크는 작은 대표 이미지만 쓴다(카페24 디스크 1.4GB가 2026-09-18에 가득 참). 저장소가 없거나
+    실패하면 예전처럼 워드프레스에 올린다. 그것마저 실패해도 이미 만든 이미지는 버리지 않는다 —
+    네이버 모음글이 그 이미지를 쓴다(예전엔 여기서 None으로 돌려서 네이버 이미지까지 사라졌다)."""
     png_bytes = generate_infographic(title, body_html)
     if png_bytes is None:
         return "", None, None
+
+    stem = f"infographic-{video_id}-{uuid.uuid4().hex[:8]}"
+    alt = f"{title} - {focus_keyword}" if focus_keyword and focus_keyword not in title else title
+    img_url: str | None = None
+    media_id: int | None = None
+
+    if image_host.is_configured():
+        try:
+            webp_bytes = _png_to_webp(png_bytes)
+            data, ext = (webp_bytes, "webp") if webp_bytes is not None else (png_bytes, "png")
+            img_url = image_host.upload_image(data, f"{stem}.{ext}")
+        except Exception as e:
+            print(f"  - 이미지 저장소(GitHub) 업로드 실패, 워드프레스 업로드로 대체: {type(e).__name__}: {e}")
+            img_url = None
+        if img_url is not None:
+            media_id = _upload_featured_thumbnail(png_bytes, stem)
+
+    if img_url is None:
+        try:
+            media = _upload_infographic(png_bytes, stem)
+            img_url, media_id = media["source_url"], media["id"]
+        except Exception as e:
+            print(f"  - 대표 인포그래픽 워드프레스 업로드 실패(글에는 이미지 없이, 네이버용 이미지는 유지): {type(e).__name__}: {e}")
+            return "", None, png_bytes
+
+    img_html = (
+        f'<img src="{img_url}" alt="{html.escape(alt)}" '
+        'style="max-width:100%; display:block; margin:24px auto;" />'
+    )
+    return img_html, media_id, png_bytes
+
+
+def _upload_featured_thumbnail(png_bytes: bytes, stem: str) -> int | None:
+    """대표 이미지(featured_media)용으로 워드프레스에는 작은 WebP만 올린다(목록 썸네일·SEO/OG
+    이미지에 미디어 ID가 필요해서). 본문 이미지는 이미지 저장소에 있으므로 이건 실패해도 글 발행은
+    계속한다 — 절대 예외를 던지지 않는다."""
     try:
-        media = _upload_infographic(png_bytes, f"infographic-{video_id}-{uuid.uuid4().hex[:8]}")
-        alt = f"{title} - {focus_keyword}" if focus_keyword and focus_keyword not in title else title
-        img_html = (
-            f'<img src="{media["source_url"]}" alt="{html.escape(alt)}" '
-            'style="max-width:100%; display:block; margin:24px auto;" />'
-        )
-        return img_html, media["id"], png_bytes
+        with Image.open(io.BytesIO(png_bytes)) as im:
+            im = im.convert("RGB")
+            if im.width > 1000:
+                im = im.resize((1000, round(im.height * 1000 / im.width)), Image.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, "WEBP", quality=82, method=6)
+        return upload_media(buf.getvalue(), f"{stem}-thumb.webp", content_type="image/webp")["id"]
     except Exception as e:
-        # 워드프레스 업로드가 실패해도(호스팅 용량 초과 등) 이미 만든 이미지는 버리지 않는다 —
-        # 네이버 모음글이 이 이미지를 그대로 쓴다. 예전엔 여기서 png_bytes까지 None으로 돌려서,
-        # 2026-09-18 워드프레스 용량이 차자 네이버 모음글 이미지도 전부 사라졌다.
-        print(f"  - 대표 인포그래픽 워드프레스 업로드 실패(글에는 이미지 없이, 네이버용 이미지는 유지): {type(e).__name__}: {e}")
-        return "", None, png_bytes
+        print(f"  - 대표(썸네일) 이미지 워드프레스 업로드 실패(글은 대표 이미지 없이 진행): {type(e).__name__}: {e}")
+        return None
 
 
 def _png_to_webp(png_bytes: bytes) -> bytes | None:

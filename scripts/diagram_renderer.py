@@ -16,6 +16,7 @@ from google.genai import types
 from playwright.sync_api import sync_playwright
 from pydantic import BaseModel
 
+from scripts import image_host
 from scripts.gemini_retry import call_with_retry
 from scripts.wordpress_publisher import upload_media
 
@@ -234,6 +235,17 @@ def _seo_alt_text(title: str, focus_keyword: str) -> str:
     return title
 
 
+def _publish_diagram_image(png_bytes: bytes, filename: str) -> str:
+    """도식화 PNG를 이미지 저장소(GitHub + jsDelivr)에 올려 주소를 돌려준다. 저장소가 없거나
+    실패하면 예전처럼 워드프레스에 올린다(호출하는 쪽이 예외를 잡아 마커를 제거함)."""
+    if image_host.is_configured():
+        try:
+            return image_host.upload_image(png_bytes, filename)
+        except Exception as e:
+            _safe_print(f"  - 도식화 이미지 저장소 업로드 실패, 워드프레스로 대체: {type(e).__name__}: {e}")
+    return upload_media(png_bytes, filename)["source_url"]
+
+
 def replace_diagram_markers(
     body_html: str, video_id: str, client, model_name: str, focus_keyword: str = ""
 ) -> str:
@@ -254,10 +266,10 @@ def replace_diagram_markers(
                         return ""
                     png_bytes = render_chart(spec, page)
                     filename = f"diagram-{video_id}-{uuid.uuid4().hex[:8]}.png"
-                    media = upload_media(png_bytes, filename)
+                    image_url = _publish_diagram_image(png_bytes, filename)
                     alt = _seo_alt_text(spec.title, focus_keyword)
                     return (
-                        f'<img src="{media["source_url"]}" alt="{html.escape(alt)}" '
+                        f'<img src="{image_url}" alt="{html.escape(alt)}" '
                         'style="max-width:50%; display:block; margin:16px auto;" />'
                     )
                 except Exception as e:

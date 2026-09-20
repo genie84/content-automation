@@ -41,6 +41,7 @@ jobs:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          IMAGE_HOST_TOKEN: ${{ secrets.IMAGE_HOST_TOKEN }}
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
