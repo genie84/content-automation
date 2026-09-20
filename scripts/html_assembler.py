@@ -1,9 +1,13 @@
 """재가공된 콘텐츠를 워드프레스 발행용 HTML 하나로 조립한다."""
 import html
+import io
 import os
 import re
 import sys
 import uuid
+
+import requests
+from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.gemini_reprocessor import ReprocessedContent, TableRow
@@ -82,8 +86,7 @@ def build_infographic_html(
     if png_bytes is None:
         return "", None, None
     try:
-        filename = f"infographic-{video_id}-{uuid.uuid4().hex[:8]}.png"
-        media = upload_media(png_bytes, filename)
+        media = _upload_infographic(png_bytes, f"infographic-{video_id}-{uuid.uuid4().hex[:8]}")
         alt = f"{title} - {focus_keyword}" if focus_keyword and focus_keyword not in title else title
         img_html = (
             f'<img src="{media["source_url"]}" alt="{html.escape(alt)}" '
@@ -91,8 +94,39 @@ def build_infographic_html(
         )
         return img_html, media["id"], png_bytes
     except Exception as e:
-        print(f"  - 대표 인포그래픽 업로드 실패(이미지 없이 계속 진행): {type(e).__name__}: {e}")
-        return "", None, None
+        # 워드프레스 업로드가 실패해도(호스팅 용량 초과 등) 이미 만든 이미지는 버리지 않는다 —
+        # 네이버 모음글이 이 이미지를 그대로 쓴다. 예전엔 여기서 png_bytes까지 None으로 돌려서,
+        # 2026-09-18 워드프레스 용량이 차자 네이버 모음글 이미지도 전부 사라졌다.
+        print(f"  - 대표 인포그래픽 워드프레스 업로드 실패(글에는 이미지 없이, 네이버용 이미지는 유지): {type(e).__name__}: {e}")
+        return "", None, png_bytes
+
+
+def _png_to_webp(png_bytes: bytes) -> bytes | None:
+    """워드프레스 업로드용으로 PNG를 WebP로 줄인다(실측: 660~830KB → 115~176KB). 원본 PNG는
+    네이버용으로 그대로 남긴다. 변환에 실패하면 None(PNG 그대로 올림)."""
+    try:
+        with Image.open(io.BytesIO(png_bytes)) as im:
+            buf = io.BytesIO()
+            im.convert("RGB").save(buf, "WEBP", quality=90, method=6)
+            return buf.getvalue()
+    except Exception as e:
+        print(f"  - WebP 변환 실패(PNG 그대로 업로드): {type(e).__name__}: {e}")
+        return None
+
+
+def _upload_infographic(png_bytes: bytes, stem: str) -> dict:
+    """WebP로 먼저 올리고, 서버가 그 형식을 거부하면(4xx) PNG로 다시 올린다. 용량 초과 같은
+    서버 오류(5xx)는 PNG로 재시도해도 소용없으니 그대로 던진다."""
+    webp_bytes = _png_to_webp(png_bytes)
+    if webp_bytes is not None:
+        try:
+            return upload_media(webp_bytes, f"{stem}.webp", content_type="image/webp")
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status is None or status >= 500:
+                raise
+            print(f"  - WebP 업로드 거부됨({status}), PNG로 재시도")
+    return upload_media(png_bytes, f"{stem}.png")
 
 
 def assemble_html(content: ReprocessedContent, video: dict) -> tuple[str, bool, int | None, bytes | None]:

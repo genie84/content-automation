@@ -114,13 +114,13 @@ def resolve_tag_ids(tag_names: list[str]) -> list[int]:
     return ids
 
 
-def upload_media(image_bytes: bytes, filename: str) -> dict:
+def upload_media(image_bytes: bytes, filename: str, content_type: str = "image/png") -> dict:
     response = requests.post(
         f"{WP_BASE_URL}/wp-json/wp/v2/media",
         auth=(os.environ["WP_USERNAME"], os.environ["WP_APP_PASSWORD"]),
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
-            "Content-Type": "image/png",
+            "Content-Type": content_type,
         },
         data=image_bytes,
         timeout=30,
