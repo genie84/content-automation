@@ -1,0 +1,49 @@
+name: Migrate Images to GitHub
+
+# 워드프레스에 쌓인 자동화 이미지(infographic-*/diagram-*)를 WebP로 줄여 이미지 저장소(GitHub + jsDelivr)로
+# 옮기고, 글 본문 이미지 주소와 대표 이미지를 바꾼다. 옛 미디어는 지우지 않는다(정리는 'Cleanup Old Images').
+# 글마다 수정 전 내용을 data/migration/posts_backup.json에 남기고, 수정 후 검증에 실패하면 그 글은 되돌린다.
+# 수동 실행 전용. limit: 시험은 3, 전체는 0.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "이번에 옮길 이미지 수 (시험 3 / 전체 0)"
+        required: true
+        default: "3"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: image-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - run: python -m scripts.migrate_images --apply --limit "$LIMIT"
+        env:
+          PYTHONUNBUFFERED: "1"
+          LIMIT: ${{ inputs.limit }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          IMAGE_HOST_TOKEN: ${{ secrets.IMAGE_HOST_TOKEN }}
+
+      - name: 이전 기록 커밋
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/migration
+          git diff --cached --quiet || (git commit -q -m "chore: 이미지 이전 기록" && git pull -q --rebase origin main && git push -q origin main)
