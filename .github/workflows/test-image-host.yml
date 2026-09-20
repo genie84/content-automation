@@ -1,0 +1,26 @@
+name: Test Image Host
+
+# 이미지 저장소(GitHub + jsDelivr) 연결 시험용 — 수동 실행 전용. 시험 이미지 1장만 올리며 유료 API는 쓰지 않는다.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests Pillow
+
+      - run: python -m scripts.test_image_host
+        env:
+          PYTHONUNBUFFERED: "1"
+          IMAGE_HOST_TOKEN: ${{ secrets.IMAGE_HOST_TOKEN }}
