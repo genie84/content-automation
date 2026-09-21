@@ -1,7 +1,7 @@
 #!/bin/bash
 # 폰 접속용 화면 스택을 (없으면) 띄운다 — 서버 재부팅 후 자동 시작(@reboot)과 수동 재시작에 쓴다.
 #   가상 화면 :98(420x900, 폰 전용) → x11vnc(:98, 로컬 5901, 접속 시 로그인 화면 훅) → websockify(외부 6080 → 5901)
-# 이미 떠 있는 건 건드리지 않는다. --restart-vnc 를 주면 x11vnc만 새 옵션으로 다시 띄운다.
+# 이미 떠 있는 건 건드리지 않는다. --restart-vnc: x11vnc만, --restart-web: websockify(noVNC 웹)만 다시 띄운다.
 # (큐 처리용 :99 화면은 naver_server_runner.sh가 필요할 때 띄운다.)
 APP=/home/ubuntu/content-automation
 
@@ -20,6 +20,18 @@ if ! pgrep -f "[x]11vnc -display :98" > /dev/null; then
         -afteraccept "$APP/scripts/on_vnc_connect.sh" >> /tmp/x11vnc98.log 2>&1 < /dev/null &
 fi
 
-if ! pgrep -f "[w]ebsockify --web=/usr/share/novnc/ 6080" > /dev/null; then
-    nohup websockify --web=/usr/share/novnc/ 6080 localhost:5901 >> /tmp/websockify.log 2>&1 < /dev/null &
+# 한글 입력 우회 패치를 적용한 noVNC 복사본(scripts/patch_novnc.py)을 쓴다. 없으면 만들어 보고, 그래도 없으면 원본.
+NOVNC_DIR=/home/ubuntu/novnc-patched
+if [ ! -d "$NOVNC_DIR" ]; then
+    python3 "$APP/scripts/patch_novnc.py" > /dev/null 2>&1
+fi
+[ -d "$NOVNC_DIR" ] || NOVNC_DIR=/usr/share/novnc
+
+if [ "${1:-}" = "--restart-web" ]; then
+    pkill -f "[w]ebsockify .* 6080"
+    sleep 1
+fi
+
+if ! pgrep -f "[w]ebsockify .* 6080" > /dev/null; then
+    nohup websockify --web="$NOVNC_DIR" 6080 localhost:5901 >> /tmp/websockify.log 2>&1 < /dev/null &
 fi
