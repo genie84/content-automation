@@ -12,6 +12,12 @@ on:
 permissions:
   contents: write
 
+# 서버가 정시에 직접 시작시킨 실행과 예약 실행이 겹쳐도 하루 1회 게이팅이 깨지지 않게 직렬화한다
+# (앞 실행이 끝나 상태를 커밋한 뒤에 다음 실행이 시작 -> 이미 실행했음으로 건너뜀).
+concurrency:
+  group: topics
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest

@@ -337,6 +337,19 @@ def _on_login_form(page) -> bool:
         return False
 
 
+def _tick_stay_signed_in(page) -> bool:
+    """로그인 화면의 "로그인 상태 유지"(#loginStay, name=nvlong) 체크박스를 켠다.
+    2026-09-22 서버에서 확인: 기본값이 꺼져 있고, 꺼진 채 로그인하면 NID_AUT/NID_SES가 세션 쿠키가 돼
+    몇 시간~하루 만에 만료됐다(저장된 세션 파일의 쿠키 expires=-1). JS click()이라 입력창 포커스를
+    뺏지 않는다. 체크박스가 없으면(다른 화면) 조용히 넘어간다."""
+    try:
+        return bool(page.evaluate(
+            "() => { const c = document.getElementById('loginStay'); if (!c) return false; if (!c.checked) c.click(); return c.checked; }"
+        ))
+    except Exception:
+        return False
+
+
 def login_and_explore(
     blog_id: str | None = None,
     wait_timeout_sec: int = LOGIN_WAIT_TIMEOUT_SEC,
@@ -386,6 +399,7 @@ def login_and_explore(
 
         page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
         time.sleep(1)
+        print(f"로그인 상태 유지 체크: {_tick_stay_signed_in(page)}")
 
         if _on_login_form(page):
             print(f"브라우저 창에서 네이버에 직접 로그인해주세요 (최대 {wait_timeout_sec}초 대기).")
@@ -404,6 +418,8 @@ def login_and_explore(
                         since_reload = 0
                         if not page.input_value("#id", timeout=2_000) and not page.input_value("#pw", timeout=2_000):
                             page.reload(wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
+                            time.sleep(1)
+                            _tick_stay_signed_in(page)
                 except Exception:
                     continue
             if not logged_in:
@@ -812,8 +828,36 @@ def publish_all_pending_drafts_to_naver(blog_id: str | None = None) -> dict:
     return {"success": success, "failed": failed}
 
 
+def check_session_health() -> bool:
+    """저장된 세션이 아직 유효한지 글쓰기 화면으로 확인하고 결과를 한 줄로 남긴다(서버 크론이 2시간마다
+    호출 — 세션이 실제로 몇 시간 사는지 재기 위한 기록이자, 유효하면 갱신된 쿠키를 다시 저장한다).
+    쿠키 만료 정보도 함께 찍어서 "로그인 상태 유지"가 먹혔는지(expires가 세션이 아닌 실제 시각) 볼 수 있다."""
+    blog_id = os.environ.get("NAVER_BLOG_ID")
+    if not (blog_id and os.path.exists(STORAGE_STATE_PATH)):
+        print("세션 확인 불가 — NAVER_BLOG_ID 또는 저장된 세션 없음")
+        return False
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context(
+            storage_state=STORAGE_STATE_PATH, viewport=LOGIN_VIEWPORT, locale="ko-KR", timezone_id="Asia/Seoul"
+        )
+        page = context.new_page()
+        valid = _session_is_valid(page, blog_id)
+        if valid:
+            context.storage_state(path=STORAGE_STATE_PATH)
+        cookies = {c["name"]: c["expires"] for c in context.cookies() if c["name"] in ("NID_AUT", "NID_SES")}
+        context.close()
+        browser.close()
+    def _fmt(e):
+        return "세션쿠키" if e == -1 else time.strftime("%m-%d %H:%M", time.localtime(e))
+    print(f"세션 {'유효' if valid else '만료'} | " + ", ".join(f"{k}={_fmt(v)}" for k, v in cookies.items()), flush=True)
+    return valid
+
+
 if __name__ == "__main__":
-    if "--login" in sys.argv:
+    if "--check-session" in sys.argv:
+        check_session_health()
+    elif "--login" in sys.argv:
         login_and_explore()
     elif "--standby-login" in sys.argv:
         if login_and_explore(wait_timeout_sec=STANDBY_LOGIN_WAIT_SEC, reload_when_idle=True, linger_sec=STANDBY_LINGER_SEC):
