@@ -11,6 +11,7 @@ name: Daily Sampro Digest (Content A)
 on:
   schedule:
     - cron: "40 1 * * *"   # 10:40 KST (오전판 — 아침 영상 글을 네이버에 빨리 올리기 위함, 2026-09-21)
+    - cron: "23 4 * * *"   # 13:23 KST (지연 보완판 — 10시 영상 글이 늦어져 오전판에 못 들어간 경우만 생성, 새 글이 없으면 건너뜀)
     - cron: "35 10 * * *"  # 19:35 KST (저녁판)
   workflow_dispatch: {}
 

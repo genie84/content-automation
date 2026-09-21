@@ -1,9 +1,12 @@
 name: Daily Topic-Selection Pipeline
 
-# 삼프로TV 영상 트랙(daily-post.yml)과 완전히 별개 스케줄. 09:00 KST = 00:00 UTC.
+# 삼프로TV 영상 트랙(daily-post.yml)과 완전히 별개 스케줄.
+# 2026-09-22: GitHub 예약 실행이 최대 ~4시간 늦게 도는 것이 확인돼(09/19~ 09:00 예약이 13시경 실행),
+# 지연돼도 오전 중에 끝나도록 06:23 KST = 21:23 UTC(전날)로 앞당겼다. 정각(:00)은 GitHub 부하가 몰려
+# 지연이 특히 크므로 분도 어긋나게 잡았다. 하루 1회 게이팅(topic_track_state.json)은 KST 날짜 기준이라 안전.
 on:
   schedule:
-    - cron: "0 0 * * *"  # 09:00 KST
+    - cron: "23 21 * * *"  # 06:23 KST
   workflow_dispatch: {}
 
 permissions:
