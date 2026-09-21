@@ -29,7 +29,11 @@ fi
 
 if [ "${1:-}" = "--restart-web" ]; then
     pkill -f "[w]ebsockify .* 6080"
-    sleep 1
+    # 옛 프로세스가 완전히 끝날 때까지 기다린다(안 기다리면 "아직 떠 있음"으로 오판해 새로 안 띄운다).
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        pgrep -f "[w]ebsockify .* 6080" > /dev/null || break
+        sleep 1
+    done
 fi
 
 if ! pgrep -f "[w]ebsockify .* 6080" > /dev/null; then
