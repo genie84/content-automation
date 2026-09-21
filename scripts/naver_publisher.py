@@ -153,6 +153,28 @@ EXPIRY_ALERT_COOLDOWN_SEC = 1800  # 같은 만료로 카카오 중복 발송 방
 LOGIN_DISPLAY = ":98"
 LOGIN_VIEWPORT = {"width": 420, "height": 900}
 
+# (2026-09-21) 폰(noVNC)에서 한글이 안 들어가는 문제의 우회 — scripts/patch_novnc.py 참고. 폰 쪽 noVNC가 한글 같은
+# 유니코드 글자를 "[[16진수코드]]"라는 ASCII 키 입력으로 바꿔 보내면(영문 키는 통과함), 이 스크립트가 입력창에서 그
+# 패턴을 실제 글자로 되돌린다(예: [[c0b4]] → 살). 로그인 화면 전용이라 컨텍스트 전체(모든 프레임)에 심는다.
+HANGUL_BRIDGE_JS = r"""
+(() => {
+  const re = /\[\[([0-9a-f]{4,6})\]\]/g;
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
+    const v = el.value;
+    re.lastIndex = 0;
+    if (!re.test(v)) return;
+    re.lastIndex = 0;
+    const nv = v.replace(re, (_, h) => String.fromCodePoint(parseInt(h, 16)));
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
+    setter.call(el, nv);
+    try { el.setSelectionRange(nv.length, nv.length); } catch (_) {}
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, true);
+})();
+"""
+
 
 def queue_naver_digest_draft(
     title: str,
@@ -259,6 +281,7 @@ def login_and_explore(
             locale="ko-KR",
             timezone_id="Asia/Seoul",
         )
+        context.add_init_script(HANGUL_BRIDGE_JS)
         page = context.new_page()
 
         page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
