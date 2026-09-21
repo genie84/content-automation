@@ -230,6 +230,41 @@ HANGUL_BRIDGE_JS = r"""
 """
 
 
+# (2026-09-21) 접속했을 때 "로그인 화면이 보이면 로그인이 필요한 것"이라는 기준이 틀렸다 — 네이버는 이미 로그인된
+# 상태에서도 로그인 주소(nidlogin.login)를 열면 로그인 폼을 그대로 보여준다(방금 로그인한 세션으로 시험해서 확인).
+# 그래서 대기 로그인 모드는 큐 처리와 똑같은 방식(글쓰기 화면의 mainFrame이 열리는가)으로 로그인 상태를 먼저 확인하고,
+# 로그인돼 있으면 로그인 폼 대신 아래 확인 화면을 보여준다. 브라우저가 뜨는 동안의 빈 흰 화면 대신 안내 화면도 보여준다.
+_PAGE_STYLE = (
+    "margin:0;background:#03C75A;color:#fff;font:600 24px sans-serif;display:flex;align-items:center;"
+    "justify-content:center;height:100vh;text-align:center;line-height:1.7"
+)
+PREPARING_HTML = (
+    f"<body style=\"{_PAGE_STYLE}\"><div>네이버 로그인 상태<br>확인하는 중...<br>"
+    "<span style=\"font-size:16px;font-weight:400\">20~30초만 기다려주세요</span></div></body>"
+)
+STATUS_OK_HTML = (
+    f"<body style=\"{_PAGE_STYLE}\"><div>✓ 이미 로그인되어 있습니다<br>"
+    "<span style=\"font-size:16px;font-weight:400\">확인 시각 __TIME__<br>지금은 하실 일이 없습니다</span></div></body>"
+)
+
+
+def _session_is_valid(page, blog_id: str, timeout_sec: int = 25) -> bool:
+    """저장된 세션으로 글쓰기 화면의 mainFrame이 열리면 로그인된 상태(큐 처리와 같은 기준)."""
+    try:
+        page.goto(
+            f"https://blog.naver.com/{blog_id}?Redirect=Write", wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS
+        )
+    except Exception:
+        return False
+    for _ in range(timeout_sec):
+        if any(f.name == "mainFrame" for f in page.frames):
+            return True
+        if "nidlogin" in page.url:
+            return False
+        page.wait_for_timeout(1000)
+    return False
+
+
 def queue_naver_digest_draft(
     title: str,
     summary_lines: list[str],
@@ -337,6 +372,17 @@ def login_and_explore(
         )
         context.add_init_script(HANGUL_BRIDGE_JS)
         page = context.new_page()
+
+        if reload_when_idle:  # 대기 로그인(폰) 모드
+            page.set_content(PREPARING_HTML)
+            if storage_state and blog_id and _session_is_valid(page, blog_id):
+                context.storage_state(path=STORAGE_STATE_PATH)
+                print("이미 로그인된 세션입니다 — 로그인 폼 대신 확인 화면을 보여줍니다.")
+                page.set_content(STATUS_OK_HTML.replace("__TIME__", time.strftime("%H:%M")))
+                time.sleep(linger_sec)
+                context.close()
+                browser.close()
+                return True
 
         page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT_MS)
         time.sleep(1)
