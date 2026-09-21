@@ -4,6 +4,8 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 
+import time
+
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,8 +23,20 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; content-automation-bot/1.0)"}
 
 
 def fetch_feed(rss_url: str) -> list[dict]:
-    response = requests.get(rss_url, headers=HEADERS, timeout=15)
-    response.raise_for_status()
+    # 유튜브 RSS는 가끔 일시적으로 404/5xx를 준다(2026-09-17~21 영상 트랙 실행이 여러 번 이 오류로 통째로
+    # 실패 -> 그 시간대 글이 다음 실행까지 밀림). 몇 번 재시도해서 일시 오류는 넘긴다.
+    last_error = None
+    for attempt in range(4):
+        try:
+            response = requests.get(rss_url, headers=HEADERS, timeout=15)
+            response.raise_for_status()
+            break
+        except requests.RequestException as e:
+            last_error = e
+            print(f"  - RSS 조회 실패({attempt + 1}/4): {type(e).__name__}: {e}")
+            time.sleep(5 * (attempt + 1))
+    else:
+        raise last_error
     root = ET.fromstring(response.content)
 
     entries = []
