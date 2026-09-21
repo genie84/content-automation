@@ -18,7 +18,7 @@ import html
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from config.sources import SOURCES
 from scripts.gemini_reprocessor import get_client, resolve_flash_model, reprocess_content, reprocess_topic
@@ -122,7 +122,11 @@ def _record_video_post_for_digest(
                 entries = json.load(f)
         except Exception:
             entries = []
-    entries = [e for e in entries if e.get("date") == today_str]
+    # 모음글이 만들어지기 전까지는 남겨둔다 — GitHub 스케줄이 최대 4시간 늦어져서(09/19~21 실측) 저녁 영상
+    # 글이 모음글 생성 뒤에 기록되거나 모음글이 자정을 넘겨 도는 일이 있는데, "오늘 것만" 남기면 그 항목은
+    # 영원히 모음글에 못 들어간다. 오래 묵은 것(2일 초과)만 버린다.
+    cutoff = (datetime.now(KST).date() - timedelta(days=2)).isoformat()
+    entries = [e for e in entries if e.get("date", "") >= cutoff]
     entries.append(
         {
             "date": today_str,
@@ -292,7 +296,6 @@ def run_sampro_digest() -> None:
     모음글 하나로 큐에 넣는다. 지니 글 자신의 요약/이미지를 그대로 재활용한다.
     새 GitHub Actions 스케줄(19:35 KST, 마지막 영상 트랙 실행 이후)에서
     `python main.py --sampro-digest`로 호출된다."""
-    today_str = datetime.now(KST).date().isoformat()
     entries = []
     if os.path.exists(VIDEO_DIGEST_PATH):
         try:
@@ -300,9 +303,11 @@ def run_sampro_digest() -> None:
                 entries = json.load(f)
         except Exception:
             entries = []
-    entries = [e for e in entries if e.get("date") == today_str]
+    # 날짜와 상관없이 아직 모음글에 안 들어간 것(최대 2일치)을 전부 모은다 — 위 기록 함수 주석 참고.
+    cutoff = (datetime.now(KST).date() - timedelta(days=2)).isoformat()
+    entries = [e for e in entries if e.get("date", "") >= cutoff]
     if not entries:
-        print("[삼프로 모음] 오늘 발행된 영상 트랙 글이 없어서 모음글 생성 건너뜀")
+        print("[삼프로 모음] 모음글에 넣을 영상 트랙 글이 없어서 생성 건너뜀")
         return
 
     today_label = datetime.now(KST).strftime("%m월 %d일")
