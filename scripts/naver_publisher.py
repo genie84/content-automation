@@ -140,7 +140,7 @@ STANDBY_LOGIN_WAIT_SEC = 72 * 3600  # 24시간이던 상한이 사람이 못 들
 # 수 있도록 표준(15초)보다 길게 열어둔다(2026-09-21, 접속 시 로그인 화면이 뜨는 방식으로 바꾸면서).
 STANDBY_LINGER_SEC = 120
 STANDBY_RELOAD_INTERVAL_SEC = 600  # 입력창이 비어 있을 때만 로그인 페이지를 새로고침(오래된 폼 방지)
-NOVNC_URL = "http://161.33.166.77:6080/vnc.html"
+NOVNC_URL = "http://161.33.166.77:6080/phone.html"
 EXPIRY_ALERT_MARK_PATH = os.path.join(DATA_DIR, "naver_expiry_alert.json")
 EXPIRY_ALERT_COOLDOWN_SEC = 1800  # 같은 만료로 카카오 중복 발송 방지(30분)
 
@@ -154,10 +154,12 @@ LOGIN_DISPLAY = ":98"
 LOGIN_VIEWPORT = {"width": 420, "height": 900}
 
 # (2026-09-21) 폰(noVNC)에서 한글이 안 들어가는 문제의 우회 — scripts/patch_novnc.py 참고. 폰 쪽 noVNC가 한글 같은
-# 유니코드 글자를 "[[16진수코드]]"라는 ASCII 키 입력으로 바꿔 보내면(영문 키는 통과함), 이 스크립트가 입력창에서 그
-# 패턴을 실제 글자로 되돌린다(예: [[c0b4]] → 살). 로그인 화면 전용이라 컨텍스트 전체(모든 프레임)에 심는다.
+# 유니코드 글자를 백틱으로 감싼 16진수(`c0b4`)라는 ASCII 키 입력으로 바꿔 보내면(영문 키는 통과함), 이 스크립트가
+# keydown 단계에서 그걸 가로채 실제 글자(살)를 "타이핑한 것처럼" 넣는다. 로그인 화면 전용이라 컨텍스트 전체(모든
+# 프레임)에 심는다. (1) 방식은 옛 폰 캐시 호환용 — 입력창 값에 [[hex]]가 나타나면 글자로 치환한다.
 HANGUL_BRIDGE_JS = r"""
 (() => {
+  // (1) 값 패턴 방식: [[c0b4]] -> 살
   const re = /\[\[([0-9a-f]{4,6})\]\]/g;
   document.addEventListener('input', (e) => {
     const el = e.target;
@@ -172,6 +174,58 @@ HANGUL_BRIDGE_JS = r"""
     try { el.setSelectionRange(nv.length, nv.length); } catch (_) {}
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }, true);
+
+  // (2) keydown 방식: `c0b4` -> 살 (이름 칸처럼 글자 종류를 걸러내는 입력칸에서도 통하고, 영문 코드가 입력창에 안 보임)
+  let buf = null, timer = null, holder = null;
+  const swallowed = new Set();
+  const isEditable = (el) => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  const insert = (el, text) => {
+    if (!text) return;
+    try { if (document.execCommand('insertText', false, text)) return; } catch (_) {}
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      const s = el.selectionStart == null ? el.value.length : el.selectionStart;
+      const en = el.selectionEnd == null ? s : el.selectionEnd;
+      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
+      setter.call(el, el.value.slice(0, s) + text + el.value.slice(en));
+      try { el.setSelectionRange(s + text.length, s + text.length); } catch (_) {}
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+    }
+  };
+  const flush = () => {  // 이스케이프가 아니었음 -> 모아둔 글자를 그대로 넣는다(비밀번호에 백틱이 있어도 안 망가지게)
+    if (buf === null) return;
+    const el = holder, text = '`' + buf;
+    buf = null; holder = null; clearTimeout(timer);
+    if (isEditable(el)) insert(el, text);
+  };
+  const arm = () => { clearTimeout(timer); timer = setTimeout(flush, 1000); };
+  const swallow = (e) => { swallowed.add(e.code); e.preventDefault(); e.stopImmediatePropagation(); };
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const el = document.activeElement;
+    if (!isEditable(el)) { buf = null; return; }
+    const k = e.key;
+    if (buf === null) {
+      if (k === '`') { buf = ''; holder = el; swallow(e); arm(); }
+      return;
+    }
+    if (k === '`') {
+      swallow(e);
+      const hex = buf; buf = null; clearTimeout(timer);
+      if (/^[0-9a-f]{4,6}$/.test(hex)) {
+        const ch = String.fromCodePoint(parseInt(hex, 16));
+        insert(el, ch);
+        el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
+      } else {
+        insert(el, '`' + hex + '`');
+      }
+      return;
+    }
+    if (/^[0-9a-f]$/.test(k) && buf.length < 6) { buf += k; swallow(e); arm(); return; }
+    flush();  // 다른 키: 모아둔 글자를 먼저 넣고, 이 키는 평소처럼 처리
+  }, true);
+  const dropUp = (e) => { if (swallowed.has(e.code)) { swallowed.delete(e.code); e.preventDefault(); e.stopImmediatePropagation(); } };
+  document.addEventListener('keyup', dropUp, true);
+  document.addEventListener('keypress', (e) => { if (swallowed.has(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 })();
 """
 
