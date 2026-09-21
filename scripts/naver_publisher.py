@@ -136,6 +136,9 @@ POST_ACTION_LINGER_SEC = 15
 # 로그인이 끝나면 곧바로 밀린 큐를 처리한다. 접속했을 때 로그인 창이 보이면 로그인,
 # 빈 화면이면 지금은 할 일이 없다는 뜻이다.
 STANDBY_LOGIN_WAIT_SEC = 72 * 3600  # 24시간이던 상한이 사람이 못 들어온 사이 끝나 빈 화면이 됐다(09/20)
+# 접속했을 때 이미 로그인된 상태면 로그인 창 대신 로그인된 네이버 화면이 잠깐 보인다 — 그걸 사람이 확인할
+# 수 있도록 표준(15초)보다 길게 열어둔다(2026-09-21, 접속 시 로그인 화면이 뜨는 방식으로 바꾸면서).
+STANDBY_LINGER_SEC = 120
 STANDBY_RELOAD_INTERVAL_SEC = 600  # 입력창이 비어 있을 때만 로그인 페이지를 새로고침(오래된 폼 방지)
 NOVNC_URL = "http://161.33.166.77:6080/vnc.html"
 EXPIRY_ALERT_MARK_PATH = os.path.join(DATA_DIR, "naver_expiry_alert.json")
@@ -227,6 +230,7 @@ def login_and_explore(
     blog_id: str | None = None,
     wait_timeout_sec: int = LOGIN_WAIT_TIMEOUT_SEC,
     reload_when_idle: bool = False,
+    linger_sec: int = POST_ACTION_LINGER_SEC,
 ) -> bool:
     """저장된 storage_state가 있으면 그 세션으로 브라우저를 띄우고, 없거나 만료됐으면
     로그인 페이지를 띄운다. 로그인 페이지의 아이디 입력창이 보이면 사람이 직접 로그인할
@@ -335,8 +339,8 @@ def login_and_explore(
         os.makedirs(DATA_DIR, exist_ok=True)
         context.storage_state(path=STORAGE_STATE_PATH)
 
-        print(f"확인하실 수 있도록 {POST_ACTION_LINGER_SEC}초 더 창을 열어둡니다...")
-        time.sleep(POST_ACTION_LINGER_SEC)
+        print(f"확인하실 수 있도록 {linger_sec}초 더 창을 열어둡니다...")
+        time.sleep(linger_sec)
         context.close()
         browser.close()
     return True
@@ -689,7 +693,7 @@ if __name__ == "__main__":
     if "--login" in sys.argv:
         login_and_explore()
     elif "--standby-login" in sys.argv:
-        if login_and_explore(wait_timeout_sec=STANDBY_LOGIN_WAIT_SEC, reload_when_idle=True):
+        if login_and_explore(wait_timeout_sec=STANDBY_LOGIN_WAIT_SEC, reload_when_idle=True, linger_sec=STANDBY_LINGER_SEC):
             # 로그인이 확인됐으니 밀린 큐를 곧바로 처리한다. 큐 처리와 git 동기화는 크론과 똑같이
             # naver_server_runner.sh가 맡는다(동시 실행은 그 스크립트의 락이 막고, 큐 처리는
             # 로그인용 :98이 아니라 에디터 서식이 맞춰진 :99에서 돈다).
