@@ -11,6 +11,12 @@ on:
 permissions:
   contents: write
 
+# 서버 크론이 정시에 직접 시작시킨 실행과 늦게 도착한 예약 실행이 겹쳐도 같은 영상을 두 번 발행하지 않게 직렬화한다
+# (앞 실행이 seen_videos를 커밋한 뒤에 다음 실행이 체크아웃한다). 모음글 워크플로우와도 같은 그룹.
+concurrency:
+  group: video-state
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest
