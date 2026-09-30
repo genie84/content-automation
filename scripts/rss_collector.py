@@ -19,22 +19,29 @@ YT_NS = "http://www.youtube.com/xml/schemas/2015"
 MEDIA_NS = "http://search.yahoo.com/mrss/"
 NS = {"atom": ATOM_NS, "yt": YT_NS, "media": MEDIA_NS}
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; content-automation-bot/1.0)"}
+# 2026-09-30: GitHub Actions 러너 IP에서 이 주소로 404가 나는 경우를 직접 재현해보니(같은 날 같은
+# 채널ID로 다른 실행은 정상), 채널ID나 코드 문제가 아니라 유튜브가 그 러너의 IP 대역을 일시적으로
+# 막는 것으로 보인다(집 네트워크에서는 봇 UA든 실제 브라우저 UA든 항상 200). 그래서 봇임을 드러내는
+# UA 대신 실제 브라우저 UA를 쓰고, 짧게 몇 번이 아니라 최대 ~4분에 걸쳐 길게 재시도해서 그 사이에
+# 차단이 풀리는 경우를 잡는다(python main.py 스텝 제한 25분 중 여유 있게 사용).
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/128.0 Safari/537.36"}
+FETCH_MAX_ATTEMPTS = 7
+FETCH_BACKOFF_SEC = [5, 10, 20, 30, 45, 60]  # 누적 약 170초
 
 
 def fetch_feed(rss_url: str) -> list[dict]:
-    # 유튜브 RSS는 가끔 일시적으로 404/5xx를 준다(2026-09-17~21 영상 트랙 실행이 여러 번 이 오류로 통째로
-    # 실패 -> 그 시간대 글이 다음 실행까지 밀림). 몇 번 재시도해서 일시 오류는 넘긴다.
     last_error = None
-    for attempt in range(4):
+    for attempt in range(FETCH_MAX_ATTEMPTS):
         try:
             response = requests.get(rss_url, headers=HEADERS, timeout=15)
             response.raise_for_status()
             break
         except requests.RequestException as e:
             last_error = e
-            print(f"  - RSS 조회 실패({attempt + 1}/4): {type(e).__name__}: {e}")
-            time.sleep(5 * (attempt + 1))
+            print(f"  - RSS 조회 실패({attempt + 1}/{FETCH_MAX_ATTEMPTS}): {type(e).__name__}: {e}")
+            if attempt < FETCH_MAX_ATTEMPTS - 1:
+                time.sleep(FETCH_BACKOFF_SEC[attempt])
     else:
         raise last_error
     root = ET.fromstring(response.content)
