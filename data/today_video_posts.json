@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "date": "2026-10-01",
+    "video_id": "7423mEzaC68",
+    "title": "4분기 증시 박스권 탈출, 외국인 매도에 달렸다",
+    "link": "https://lampgenie.co.kr/q4-stock-market-foreign-selling/",
+    "summary_lines": [
+      "답답한 박스권에 갇힌 국내 증시가 4분기에 반등의 돌파구를 찾을 수 있을지 관심이 집중되고 있어요.",
+      "지수 상단을 짓누르는 가장 결정적인 요인은 외국인의 지속적인 순매도 흐름입니다.",
+      "결국 환율 안정과 주요 기업의 실적 회복이 맞물려 외국인 수급이 돌아서야 박스권 탈출이 가능해집니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-10-01",
+    "video_id": "vnJxxw7Ecm8",
+    "title": "대미투자와 D램 폭등, 기대와 우려 사이",
+    "link": "https://lampgenie.co.kr/us-investment-energy-dram-demand/",
+    "summary_lines": [
+      "미국 현지 가스발전, 원전, 알래스카 프로젝트 등 대규모 대미투자가 본격화되면서 기대와 리스크가 교차하고 있습니다.",
+      "메타의 AI 모델 뮤즈가 이용자 1인당 8GB 수준의 D램을 소모하는 등 AI 서비스 확대로 메모리 수요가 폭증하고 있습니다.",
+      "AI 인프라 확장세에 힘입어 9월 D램 고정가격이 또다시 최고치를 경신하며 반도체 슈퍼사이클 기대감이 커지고 있습니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-10-01",
+    "video_id": "GL5BJd8hzQ8",
+    "title": "마이크론 실적 후 주춤, 반도체 투톱 어디로?",
+    "link": "https://lampgenie.co.kr/micron-earnings-semiconductor-outlook/",
+    "summary_lines": [
+      "마이크론 실적 발표 이후 메모리 반도체 주가가 숨고르기에 들어가며 시장의 긴장감이 높아졌어요.",
+      "인공지능발 HBM 수요는 여전히 견고하지만 범용 메모리 회복 속도와 기대치 충족 여부가 관건입니다.",
+      "삼성전자와 SK하이닉스는 차세대 고대역폭 메모리 주도권과 공정 최적화로 돌파구를 모색하고 있습니다."
+    ],
+    "has_image": true
+  }
+]
