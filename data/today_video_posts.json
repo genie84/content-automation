@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "date": "2026-10-19",
+    "video_id": "FPCy7xSHMJ0",
+    "title": "반도체 급락 후 저점 찾기, 지금 봐야 할 변수들",
+    "link": "https://lampgenie.co.kr/semiconductor-market-bottom-check/",
+    "summary_lines": [
+      "최근 글로벌 증시의 핵심 축인 반도체 섹터가 급락세를 보이며 시장 전반의 변동성을 키우고 있습니다.",
+      "이번 주 증시의 핵심 관전 포인트는 기술적 지지선 확인과 실적 발표 시즌을 앞둔 저점 형성 시도 여부입니다.",
+      "거시경제 지표와 빅테크의 AI 설비투자 지속성이라는 두 가지 변수를 꼼꼼히 점검하며 분할 관점으로 대응할 필요가 있습니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-10-19",
+    "video_id": "cbetF8o2aWc",
+    "title": "머스크의 D램 저격과 10월 금리 동결 전망의 속사정",
+    "link": "https://lampgenie.co.kr/musk-dram-remarks-bok-interest-rate/",
+    "summary_lines": [
+      "일론 머스크가 AI 인프라 비용 부담을 이유로 중국산 D램 대량 공급 가능성을 언급하며 글로벌 메모리 시장에 파장을 던졌습니다.",
+      "한국은행의 기준금리 결정과 관련해 10월 동결 후 11월 인상 가능성이라는 엇갈린 통화정책 전망이 제기되고 있습니다.",
+      "고가의 AI 메모리 수요 독점 구도와 가계부채 및 환율 리스크가 얽힌 통화정책 딜레마를 함께 짚어봅니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-10-19",
+    "video_id": "QrctOAr3X6M",
+    "title": "AI 랠리 뒤에 숨은 진짜 위기, 어디서 올까",
+    "link": "https://lampgenie.co.kr/ai-rally-hidden-infrastructure-risks/",
+    "summary_lines": [
+      "AI 인프라 확장과 빅테크 실적 기대감 속에서도 시장 이면의 구조적 리스크 점검이 필요한 시점입니다.",
+      "빅테크 중심의 대규모 자본지출(Capex) 대비 수익화 속도 지연과 전력망 병목 현상이 핵심 변수로 부각되고 있습니다.",
+      "표면적인 랠리에 휩쓸리기보다는 부채 비용 증가와 밸류에이션 부담 등 진짜 숨겨진 위험 요인을 냉정하게 살펴야 합니다."
+    ],
+    "has_image": true
+  }
+]
