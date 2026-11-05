@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "date": "2026-11-05",
+    "video_id": "7m3a2jY17MM",
+    "title": "반도체 급락 속 새로운 기회와 수혜 섹터 찾기",
+    "link": "https://lampgenie.co.kr/semiconductor-drop-and-sector-rotation-strategy/",
+    "summary_lines": [
+      "최근 반도체 대형주 중심의 변동성이 확대되면서 시장에서는 조정 국면인지 저가 매수 기회인지에 대한 논쟁이 이어지고 있어요.",
+      "주도주 쏠림 현상이 완화되는 과정에서 실적 가시성이 높거나 밸류에이션 부담이 적은 차기 수혜 업종으로 수급 분산이 나타나고 있습니다.",
+      "급락 장세 속 무리한 추격 매수보다는 포트폴리오 다변화와 이익 체력을 중심으로 한 선별적 대응 전략이 필요한 시점입니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-05",
+    "video_id": "9IxCI6Otdog",
+    "title": "미 중간선거 충격과 통신주 깜짝 실적",
+    "link": "https://lampgenie.co.kr/us-midterm-election-telecom-earnings/",
+    "summary_lines": [
+      "미국 중간선거에서 트럼프 전 대통령 측의 부진과 함께 민주당의 '블루 쓰나미'가 거론되며 정치적 판도 변화가 감지되었습니다.",
+      "시장 불안 속에서 대표적 경기방어주로 꼽히는 SK텔레콤과 LG유플러스가 깜짝 실적을 기록하며 주목받았습니다.",
+      "거시적 정치 불확실성이 커질 때 안정적인 현금흐름과 배당 매력을 갖춘 방어주의 가치가 다시 부각되고 있습니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-05",
+    "video_id": "1Am3E3KXHj8",
+    "title": "정치 지각변동 속 AI 데이터센터와 반도체의 미래",
+    "link": "https://lampgenie.co.kr/ai-datacenter-investment-semiconductor-outlook/",
+    "summary_lines": [
+      "선거 결과 등 정치 지형 변화가 빅테크의 AI 데이터센터 설비투자 속도에 어떤 변수로 작용할지 관심이 집중되고 있어요.",
+      "빅테크 기업들의 AI 투자 수익성(ROI) 회수 시점과 막대한 전력 소모 문제는 규제 및 인프라 정책과 직결됩니다.",
+      "정치적 불확실성에도 고대역폭메모리(HBM)를 중심으로 한 반도체 밸류체인의 중장기적 수요 방향성은 여전히 견고합니다."
+    ],
+    "has_image": true
+  }
+]
