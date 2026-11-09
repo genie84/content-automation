@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "date": "2026-11-09",
+    "video_id": "uSSCa0lXfeE",
+    "title": "외국인 매도 멈출까? 증시 수급 관전 포인트",
+    "link": "https://lampgenie.co.kr/stock-market-foreign-supply-demand/",
+    "summary_lines": [
+      "최근 국내 증시의 향방을 가르는 핵심 변수로 외국인 투자자의 수급 변화가 집중 조명을 받고 있어요.",
+      "매도세 지속 여부와 환율·글로벌 금리 등 외부 환경의 안정 시점이 증시 반등의 분수령이 될 전망입니다.",
+      "개별 기업 실적과 함께 시장 전체의 수급 흐름을 면밀히 살피는 신중한 접근이 필요한 시점이에요."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-09",
+    "video_id": "_JZtm8h-b20",
+    "title": "AI 규제 폭풍과 LNG 운반선 수주 역전",
+    "link": "https://lampgenie.co.kr/nvidia-ai-regulations-and-lng-carrier-market/",
+    "summary_lines": [
+      "엔비디아가 AI 기술 규제와 첩보 관련 의혹 등 복합 악재에 직면하며 글로벌 기술 시장의 불확실성이 커지고 있습니다.",
+      "한국이 독주해온 LNG 운반선 시장에서 중국이 10월 수주량 1위를 기록하며 국내 조선업계에 경고등이 켜졌습니다.",
+      "첨단 기술 규제와 제조업의 후발 주자 추격 속에서 기업들의 리스크 관리 및 대응 전략이 매우 중요해졌습니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-09",
+    "video_id": "T_isw7gZMwo",
+    "title": "11~12월 연말 증시 반등장 오나, 유동성 지형도 점검",
+    "link": "https://lampgenie.co.kr/year-end-stock-market-liquidity/",
+    "summary_lines": [
+      "연말을 앞두고 11월과 12월 증시 반등장에 대한 기대감이 자금 시장과 투자자들 사이에서 커지고 있어요.",
+      "시중 유동성의 향방과 통화정책 변화가 증시의 향방을 가를 주요 변수로 꼽힙니다.",
+      "무조건적인 낙관보다는 계절적 수급 흐름과 유동성 변곡점을 신중히 살펴보고 대응할 필요가 있어요."
+    ],
+    "has_image": true
+  }
+]
