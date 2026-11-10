@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "date": "2026-11-10",
+    "video_id": "zRaEyRik4Sg",
+    "title": "필라델피아 반도체지수 급등과 코스피 반등 기대감",
+    "link": "https://lampgenie.co.kr/philadelphia-semiconductor-index-kospi-rebound/",
+    "summary_lines": [
+      "필라델피아 반도체지수가 6.85% 급등하며 글로벌 기술주 투자심리가 다시 살아나는 모습을 보였습니다.",
+      "국내 증시의 핵심 축인 반도체 대장주를 중심으로 코스피 지수의 반등 기대감이 한층 커지고 있습니다.",
+      "다만 외국인 수급의 지속성과 글로벌 금리·환율 등 대외 리스크 요인은 여전히 점검이 필요합니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-10",
+    "video_id": "hwpwEyJ3cTs",
+    "title": "플랫폼 6천억 과징금과 AI 규제 파장",
+    "link": "https://lampgenie.co.kr/platform-monopoly-ai-regulation/",
+    "summary_lines": [
+      "미국에서는 젠슨 황 이슈와 함께 중국 안보 우려를 이유로 AI 및 기술 기업에 대한 규제 공세가 강해지고 있습니다.",
+      "국내에서는 시장 점유율 93%에 달하는 대형 플랫폼에 독과점 제재로 역대 최대 규모인 6,319억 원의 과징금이 부과되었습니다.",
+      "글로벌 AI 규제와 국내 플랫폼 제재라는 두 축이 기술 기업 생태계와 시장 질서에 어떤 파장을 가져올지 주목됩니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-10",
+    "video_id": "8eVQC_Gt1BM",
+    "title": "반도체 주가 조정, 과도한 하락 뒤 현금 집행 타이밍은?",
+    "link": "https://lampgenie.co.kr/semiconductor-stock-price-correction/",
+    "summary_lines": [
+      "최근 반도체 업종의 급락세가 과도하다는 분석과 함께 가격 조정이 마무리 단계에 접어들었다는 관측이 나오고 있어요.",
+      "밸류에이션 부담이 대폭 낮아진 만큼 보유 현금을 어떻게 배분하여 진입할지 전략적 접근이 필요한 시점입니다.",
+      "글로벌 경기 둔화와 수요 회복 시점에 따른 변동성은 여전히 존재하므로 분할 매수와 리스크 관리가 핵심입니다."
+    ],
+    "has_image": true
+  }
+]
