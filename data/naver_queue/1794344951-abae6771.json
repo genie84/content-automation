@@ -1,0 +1,51 @@
+{
+  "title": "TODAY ISSUE 1111_1",
+  "summary_lines": [
+    "주식",
+    "부동산",
+    "생활경제",
+    "경제상식"
+  ],
+  "table_rows": [],
+  "segments": [
+    {
+      "html": "<p>안녕하세요, 서현이 아빠입니다 🙌 오늘(11월 11일) 지니가 정리한 분야별 경제 이슈들을 모아봤어요.</p><p>서현이 아빠의 본체 LAMPGENIE.CO.KR 사이트에서 세부내용 확인해주세요.</p>",
+      "has_image": false
+    },
+    {
+      "html": "<h2>주식</h2><p>미국과 이란의 지정학적 긴장 완화 신호에 WTI와 브렌트유 등 국제유가가 4~5%대 급락했습니다.</p><p>유류비 부담 완화 기대감으로 진에어와 대한항공우가 상한가를 기록하는 등 항공주가 대거 급등했습니다.</p><p>증권가에서는 유가 피크아웃, 원화 강세, 여행 수요 회복이라는 삼박자가 맞아떨어질 것으로 기대하고 있습니다.</p><p><a href=\"https://lampgenie.co.kr/oil-price-drop-aviation-stocks-rally/\">자세히 보기 👉</a></p><p>https://lampgenie.co.kr/oil-price-drop-aviation-stocks-rally/</p>",
+      "has_image": true
+    },
+    {
+      "html": "<p>· · ·</p>",
+      "has_image": false
+    },
+    {
+      "html": "<h2>부동산</h2><p>여당이 서울 시내 2만㎡ 미만 소규모 재건축·재개발 231곳의 인허가 권한을 구청장에게 이양하는 도시정비법 개정을 추진 중이에요.</p><p>가구 수 변동 혼선을 막기 위해 당초 500가구 미만에서 구역 면적 2만㎡ 미만 기준으로 개정안이 수정되었습니다.</p><p>구청장협의회는 3만㎡ 확대를 건의하는 반면, 서울시는 광역 기반시설 연계 약화와 난개발 우려로 난색을 표하고 있습니다.</p><p><a href=\"https://lampgenie.co.kr/seoul-small-redevelopment-permit-clash/\">더 궁금하시면 여기 👉</a></p><p>https://lampgenie.co.kr/seoul-small-redevelopment-permit-clash/</p>",
+      "has_image": true
+    },
+    {
+      "html": "<p>· · ·</p>",
+      "has_image": false
+    },
+    {
+      "html": "<h2>생활경제</h2><p>공정거래위원회가 입점업체에 가격 강요(최혜대우)를 한 배달의민족과 쿠팡이츠에 역대 최대인 6,319억 원의 과징금을 부과했어요.</p><p>두 배달앱의 합산 점유율이 93%에 달하는 과점 구조 속에서, 수수료 인상 후 실제로 메뉴 가격과 최소 주문 금액이 오른 것으로 분석됐습니다.</p><p>자진 시정안(동의의결) 신청도 기각된 가운데, 이번 조치가 향후 배달 수수료와 음식값 안정으로 이어질지 관심이 쏠립니다.</p><p><a href=\"https://lampgenie.co.kr/delivery-app-fines-6300-billion/\">관련 내용은 이 글에서 👉</a></p><p>https://lampgenie.co.kr/delivery-app-fines-6300-billion/</p>",
+      "has_image": true
+    },
+    {
+      "html": "<p>· · ·</p>",
+      "has_image": false
+    },
+    {
+      "html": "<h2>경제상식</h2><p>달러/원 환율이 상승하면 은행의 외화자산과 파생상품 익스포저가 원화로 환산되면서 위험가중자산(RWA)이 크게 늘어나요.</p><p>환율이 100원 오를 때 대형 시중은행의 RWA는 6조 원 안팎 증가하고, BIS 비율은 약 0.25%p 하락하는 구조를 보입니다.</p><p>최근 환율 변동성 속에서 외화 RWA 비중이 27.2%까지 커진 만큼, 은행들의 건전성 관리 부담도 함께 높아지고 있어요.</p><p><a href=\"https://lampgenie.co.kr/exchange-rate-rwa-bis-ratio-impact/\">이어서 읽어보시려면 👉</a></p><p>https://lampgenie.co.kr/exchange-rate-rwa-bis-ratio-impact/</p>",
+      "has_image": true
+    },
+    {
+      "html": "<p>오늘도 읽어주셔서 감사합니다 😊.</p>",
+      "has_image": false
+    }
+  ],
+  "topic": "카테고리 모음(콘텐츠 B)",
+  "category_label": "모음",
+  "has_image": false
+}
