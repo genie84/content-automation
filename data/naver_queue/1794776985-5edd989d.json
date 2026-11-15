@@ -1,0 +1,51 @@
+{
+  "title": "TODAY ISSUE 1116_1",
+  "summary_lines": [
+    "주식",
+    "부동산",
+    "생활경제",
+    "경제상식"
+  ],
+  "table_rows": [],
+  "segments": [
+    {
+      "html": "<p>안녕하세요, 서현이 아빠입니다 🙌 오늘(11월 16일) 지니가 정리한 분야별 경제 이슈들을 모아봤어요.</p><p>서현이 아빠의 본체 LAMPGENIE.CO.KR 사이트에서 세부내용 확인해주세요.</p>",
+      "has_image": false
+    },
+    {
+      "html": "<h2>주식</h2><p>NHN이 3분기 매출 7,583억 원, 영업이익 588억 원으로 역대 최대 분기 실적을 올리며 주가가 상한가(7만 7,400원)를 기록했어요.</p><p>AI GPU 수요 폭발로 NHN클라우드 매출이 75.5% 급증했고, 엔비디아 B200 GPU 7,656장의 5년 치 대외 물량이 완판되었습니다.</p><p>결제 사업(NHN KCP 해외 거래액 75.4%↑)과 웹보드 게임 매출 증가(16.2%↑)가 합쳐져 핵심 사업 전반이 고르게 성장했습니다.</p><p><a href=\"https://lampgenie.co.kr/nhn-q3-earnings-ai-cloud-soar/\">자세히 보기 👉</a></p><p>https://lampgenie.co.kr/nhn-q3-earnings-ai-cloud-soar/</p>",
+      "has_image": true
+    },
+    {
+      "html": "<p>· · ·</p>",
+      "has_image": false
+    },
+    {
+      "html": "<h2>부동산</h2><p>정부의 세제 개편으로 2028년부터 실거주자와 비거주 1주택자 간 보유세 격차가 최대 30% 넘게 벌어집니다.</p><p>종부세 기본공제액 차이 2억 원과 양도세 부담 최대 5억 원 차이로 인해 집주인들의 직접 입주 유인이 커지고 있습니다.</p><p>서울 내 약 83만 가구에 달하는 비거주 1주택자 규제로 인해 전월세 물량이 줄고 임차인에게 세금이 전가될 위험이 지적됩니다.</p><p><a href=\"https://lampgenie.co.kr/non-resident-single-home-tax-reform/\">더 궁금하시면 여기 👉</a></p><p>https://lampgenie.co.kr/non-resident-single-home-tax-reform/</p>",
+      "has_image": true
+    },
+    {
+      "html": "<p>· · ·</p>",
+      "has_image": false
+    },
+    {
+      "html": "<h2>생활경제</h2><p>정부가 직장인의 가처분소득을 늘리기 위해 &#x27;월급방위대 TF&#x27;를 신설하고 연말까지 서민 밀착형 세제·재정 지원 대책을 집중 마련합니다.</p><p>월세 세액공제 한도가 연 1,200만 원으로 늘어나고 부양가족 소득세 기본공제 요건도 연 300만 원 이하로 대폭 완화될 예정입니다.</p><p>맞벌이 근로장려금 확대와 출퇴근 시차 대중교통비 최대 50% 환급 등 생활비 부담을 줄여주는 실질적인 지원책들이 포함됐습니다.</p><p><a href=\"https://lampgenie.co.kr/salary-defense-tf-tax-deduction/\">관련 내용은 이 글에서 👉</a></p><p>https://lampgenie.co.kr/salary-defense-tf-tax-deduction/</p>",
+      "has_image": true
+    },
+    {
+      "html": "<p>· · ·</p>",
+      "has_image": false
+    },
+    {
+      "html": "<h2>경제상식</h2><p>한국은행 조사 결과 국내 근로자의 51.8%가 업무에 생성형 AI를 활용하며 주당 약 1.5시간의 업무시간을 줄인 것으로 나타났어요.</p><p>그러나 업무시간 절감률과 업무 처리량 증가율 간 상관계수는 0으로 추정되며 시간 절약이 실질 산출량 증가로 이어지지 않는 &#x27;생산성 단절&#x27;이 관찰됐습니다.</p><p>조직 구조의 경직성과 성과 보상 유인체계 부재가 원인으로 꼽히며, 자율성이 높은 자영업자나 전문직에서는 예외적으로 생산성 증가가 확인됐습니다.</p><p><a href=\"https://lampgenie.co.kr/multimodal-generative-ai-progress-and-future-challenges/\">이어서 읽어보시려면 👉</a></p><p>https://lampgenie.co.kr/multimodal-generative-ai-progress-and-future-challenges/</p>",
+      "has_image": true
+    },
+    {
+      "html": "<p>오늘도 읽어주셔서 감사합니다 😊.</p>",
+      "has_image": false
+    }
+  ],
+  "topic": "카테고리 모음(콘텐츠 B)",
+  "category_label": "모음",
+  "has_image": false
+}
