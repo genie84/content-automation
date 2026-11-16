@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "date": "2026-11-16",
+    "video_id": "LagAldYbD8M",
+    "title": "엔비디아 실적과 옵션 만기, 이번 주 증시 향방은?",
+    "link": "https://lampgenie.co.kr/nvidia-earnings-and-options-expiry/",
+    "summary_lines": [
+      "엔비디아 실적 발표를 앞두고 글로벌 AI 산업 성장성에 대한 시장의 검증이 본격화되고 있습니다.",
+      "이번 주 파생상품 옵션 만기일이 겹치면서 외국인과 기관의 수급 변동성이 커질 가능성이 높습니다.",
+      "단기 주가 흔들림에 뇌동매매하기보다는 실적 가이던스 확인 후 현금 비중을 조절하는 신중한 접근이 필요합니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-16",
+    "video_id": "ue4sG-vBq7Y",
+    "title": "670조 AI 시장 리스크와 자격증 시험 충격",
+    "link": "https://lampgenie.co.kr/ai-market-risk-and-exam-issue/",
+    "summary_lines": [
+      "670조 원 규모의 AI 금융 시장이 흔들리며 관련 수장의 복귀 청원까지 등장하는 등 시장 불확실성이 커지고 있습니다.",
+      "AI 기술을 악용한 세무사 자격시험 수석 합격 부정행위 사건이 발생하며 전문직 시험의 공정성 논란이 불거졌습니다.",
+      "기술의 급격한 발전이 가져온 금융 시장 변동성과 제도적 허점을 신속히 점검하고 대책을 마련해야 할 시점입니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-16",
+    "video_id": "UihZAstNiGU",
+    "title": "AI 버블 붕괴일까 조정일까? 시장의 핵심 변수 3가지",
+    "link": "https://lampgenie.co.kr/ai-bubble-or-healthy-correction/",
+    "summary_lines": [
+      "최근 AI 관련 주가가 큰 폭의 변동성을 보이면서 버블 붕괴론과 상승장 전의 일시적 조정론이 맞서고 있어요.",
+      "빅테크 기업들의 인프라 투자(CapEx) 대비 실제 수익화(ROI) 속도가 시장 기대치를 충족하는지가 향후 주가의 핵심 변수입니다.",
+      "전력망 부족과 차세대 칩 공급 수율 등 물리적 병목 현상의 해소 여부에 따라 산업의 성장 속도가 결정될 전망이에요."
+    ],
+    "has_image": true
+  }
+]
