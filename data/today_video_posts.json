@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "date": "2026-11-18",
+    "video_id": "kZc5iQ0bXfY",
+    "title": "지금 단기 매매 쉬어야 할까? 코스피 회복 조건 점검",
+    "link": "https://lampgenie.co.kr/kospi-recovery-conditions-strategy/",
+    "summary_lines": [
+      "증시 변동성이 커진 상황에서는 섣부른 단기 매매보다 코스피 회복 조건을 점검하며 원칙을 지키는 투자가 필요합니다.",
+      "환율 안정과 외국인 수급 개선, 핵심 기업들의 실적 반등이 선행되어야 장기적인 상승 동력이 마련될 수 있습니다.",
+      "시장의 단기 흔들림에 조급해하기보다 확실한 반등 신호를 확인하며 호흡을 길게 가져가는 전략이 유효합니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-18",
+    "video_id": "tB7T2h2hbYc",
+    "title": "엔비디아 역대 최대 매출과 삼성 메모리의 반전",
+    "link": "https://lampgenie.co.kr/nvidia-q3-revenue-samsung-apple-memory/",
+    "summary_lines": [
+      "엔비디아가 3분기 매출 1,158억 달러를 기록하며 역대 최대 실적을 올려 AI 반도체 수요의 건재함을 증명했어요.",
+      "자체 메모리 공급망 확보가 급해진 애플이 삼성전자와 장기 메모리 공급 계약 막바지 단계에 진입했습니다.",
+      "빅테크 간 주도권 싸움이 가열되는 가운데 핵심 부품 공급을 쥔 기업들의 비상등과 호재가 교차하고 있어요."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-18",
+    "video_id": "E2-V6z2WQzo",
+    "title": "엔비디아 역대급 실적에도 AI 투자가 계속될까",
+    "link": "https://lampgenie.co.kr/nvidia-ai-investment-variables-outlook/",
+    "summary_lines": [
+      "엔비디아가 역대급 실적을 발표하며 글로벌 AI 반도체 열풍을 다시 한번 입증했어요.",
+      "빅테크 기업들의 AI 설비투자(CAPEX) 경쟁이 이어지는 가운데 투자 대비 수익성 검증이라는 과제가 남아있습니다.",
+      "글로벌 반도체 공급망 병목과 AI 시장의 향후 방향성을 신중하게 살필 필요가 있습니다."
+    ],
+    "has_image": true
+  }
+]
