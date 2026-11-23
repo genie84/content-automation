@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "date": "2026-11-23",
+    "video_id": "IVlkZX6kxsI",
+    "title": "HBM 수요 우려와 반도체주, 진짜 불황의 시작일까",
+    "link": "https://lampgenie.co.kr/hbm-demand-outlook-semiconductor-analysis/",
+    "summary_lines": [
+      "HBM(고대역폭 메모리) 수요 전망 하향 소식에 반도체 업황 불황 우려가 다시 수면 위로 올라왔습니다.",
+      "코스피 지수가 흔들리는 가운데 삼성전자와 SK하이닉스 등 국내 반도체 대장주의 주가 변동성도 확대되는 모양새입니다.",
+      "단기적인 AI 거품론과 장기적 실적 체력 사이에서 주요 고객사 공급망 동향을 냉정하게 살펴볼 필요가 있습니다."
+    ],
+    "has_image": true
+  }
+]
