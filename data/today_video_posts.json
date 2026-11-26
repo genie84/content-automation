@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "date": "2026-11-26",
+    "video_id": "kLLgdkWNy3Q",
+    "title": "국내 증시 반등 속 5,000선 회복을 위한 과제",
+    "link": "https://lampgenie.co.kr/korean-stock-market-rebound-challenges/",
+    "summary_lines": [
+      "최근 국내 증시가 반등 시도를 이어가고 있지만, 지수 상단을 크게 열어두기 위해서는 구조적인 과제 해결이 선행되어야 해요.",
+      "지수 5,000선 회복이라는 목표를 달성하기 위해서는 단기 수급을 넘어 기업 실적 개선과 주주환원 확대가 필수적입니다.",
+      "글로벌 변동성과 코리아 디스카운트 해소 여부가 향후 한국 증시의 상향 재평가를 가르는 핵심 열쇠가 될 전망이에요."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-26",
+    "video_id": "elji86PkSgs",
+    "title": "주가는 뚝뚝 금리는 멈칫? 올해 마지막 금통위 전망",
+    "link": "https://lampgenie.co.kr/bok-rate-decision-and-tariff-outlook/",
+    "summary_lines": [
+      "올해 마지막 금통위를 앞두고 기준금리 방향성과 함께 주가 흐름과 경제 지표 사이의 미묘한 온도차가 관측되고 있어요.",
+      "미국 등 주요국이 중국의 과잉 생산에 대한 고율 관세 조치를 강화하는 가운데, 한국은 15% 상한선이 유지될 것으로 보여요.",
+      "증시 변동성과 글로벌 통상 환경의 변화 속에서 우리 투자자들이 챙겨야 할 핵심 포인트와 리스크 요인을 정리했습니다."
+    ],
+    "has_image": true
+  },
+  {
+    "date": "2026-11-26",
+    "video_id": "5MDpoUsRt0g",
+    "title": "삼성전자 주가 과도한 하락일까? 3월까지 봐야 할 변수",
+    "link": "https://lampgenie.co.kr/samsung-electronics-stock-price-march-outlook/",
+    "summary_lines": [
+      "삼성전자와 SK하이닉스가 괄목할 만한 실적 흐름에도 불구하고 주가는 과도한 하락세를 겪고 있어요.",
+      "AI 반도체 피크아웃 우려와 HBM 공급 일정, 글로벌 통상 정책 불확실성이 복합적으로 작용하고 있습니다.",
+      "올해 3월 주주총회와 1분기 실적 가시화 시점까지 주요 변수를 면밀히 점검할 필요가 있어요."
+    ],
+    "has_image": true
+  }
+]
